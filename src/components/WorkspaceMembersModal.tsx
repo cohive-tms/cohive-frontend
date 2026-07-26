@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, UserPlus, Shield, Trash2, Users, Sliders, Plus, Menu, Mail, Key, Loader, 
   ArrowUp, ArrowDown, Edit2, CreditCard, FileText, Download, AlertCircle, CheckCircle, ExternalLink,
-  MessageSquare, RefreshCw
+  MessageSquare, RefreshCw, Megaphone
 } from 'lucide-react';
 import { WorkspaceGroupsTab } from './WorkspaceGroupsTab';
 import { SmtpSettingsTab } from './SmtpSettingsTab';
+import { WorkspaceAuditLogsTab, WorkspaceAnnouncementsTab } from './WorkspaceSaaSAddon';
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
 import { getApiUrl } from '../utils/apiUrl';
@@ -944,6 +945,20 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({
               </button>
             )}
 
+            {isOwner && (
+              <>
+                <button className={`tab-btn ${activeTab === 'audit' ? 'active' : ''}`} onClick={() => setActiveTab('audit')}>
+                  <FileText size={16} />
+                  <span>{isEn ? 'Audit Logs 🔒' : '自社監査ログ 🔒'}</span>
+                </button>
+
+                <button className={`tab-btn ${activeTab === 'announcements' ? 'active' : ''}`} onClick={() => setActiveTab('announcements')}>
+                  <Megaphone size={16} />
+                  <span>{isEn ? 'Announcements 🔒' : '一斉送信 🔒'}</span>
+                </button>
+              </>
+            )}
+
             {isOwner && (isSaasMode || subscription) && (
               <button className={`tab-btn ${activeTab === 'subscription' ? 'active' : ''}`} onClick={() => setActiveTab('subscription')}>
                 <CreditCard size={16} />
@@ -975,6 +990,10 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({
           renderMembersTab()
         ) : activeTab === 'general' ? (
           renderGeneralTab()
+        ) : activeTab === 'audit' ? (
+          <WorkspaceAuditLogsTab workspaceId={workspace!.id} workspaceName={workspace!.name} currentUserRole={currentUserRole} />
+        ) : activeTab === 'announcements' ? (
+          <WorkspaceAnnouncementsTab workspaceId={workspace!.id} workspaceName={workspace!.name} currentUserRole={currentUserRole} />
         ) : activeTab === 'subscription' ? (
           isOwner && renderSubscriptionTab()
         ) : activeTab === 'groups' ? (

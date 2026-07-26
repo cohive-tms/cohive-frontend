@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, AlertCircle, ExternalLink, Download, CreditCard, FileText } from 'lucide-react';
+import { Loader, AlertCircle, ExternalLink, Download, CreditCard, FileText, Megaphone, Plus, Trash2, Calendar, Lock } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
 
-// Stripe決済連携機能フラグ（動作検証後に true に変更することで全機能UIが復元されます）
 const ENABLE_STRIPE_FEATURE = false;
 
 interface PublicPlan {
@@ -29,6 +28,17 @@ interface WorkspaceAuditLog {
   created_at: string;
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  isActive: boolean | number;
+  startAt?: string | null;
+  endAt?: string | null;
+  createdAt: string;
+}
+
 interface SubscriptionData {
   plan: string;
   storageLimit: number;
@@ -52,8 +62,8 @@ interface WorkspaceSaaSAddonProps {
   workspaceId: string;
   workspaceName: string;
   currentUserRole: 'owner' | 'group_admin' | 'member' | 'guest';
-  subscription: SubscriptionData | null;
-  onRefreshSubscription: () => void;
+  subscription?: SubscriptionData | null;
+  onRefreshSubscription?: () => void;
 }
 
 // -----------------------------------------------------------------------------
@@ -73,7 +83,6 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
   const [publicPlans, setPublicPlans] = useState<PublicPlan[]>([]);
   const [billingLoading, setBillingLoading] = useState(false);
 
-  // プラン一覧取得
   useEffect(() => {
     const loadPublicPlans = async () => {
       try {
@@ -97,202 +106,24 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
     );
   }
 
-  const isSuspended = subscription.status === 'suspended';
-
-  // Stripe Checkout
-  const handleUpgrade = async (planId: string) => {
-    setBillingLoading(true);
-    try {
-      const res = await apiClient.post<{ success: boolean; url: string }>(
-        `/api/workspaces/${workspaceId}/billing/checkout`,
-        { planId }
-      );
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      }
-    } catch (err: any) {
-      alert(err.message || "決済画面の起動に失敗しました。");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  // Stripe Portal
-  const handleOpenStripePortal = async () => {
-    setBillingLoading(true);
-    try {
-      const res = await apiClient.post<{ success: boolean; url: string }>(
-        `/api/workspaces/${workspaceId}/billing/portal`
-      );
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      }
-    } catch (err: any) {
-      alert(err.message || "ポータル画面の起動に失敗しました。");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  // 容量フォーマット
-  const formatSize = (bytes: number) => {
-    if (bytes === Infinity || bytes >= 9999999999) return '無制限';
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   return (
-    <div className="settings-form-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {isSuspended && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '16px', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5' }}>
-          <AlertCircle size={20} style={{ flexShrink: 0 }} />
-          <div>
-            <strong>決済が確認できないため、このワークスペースは一時停止されています。</strong><br />
-            お支払い処理を完了するか、契約ポータルから決済情報を更新してください。一般機能（チャット、アップロード等）へのアクセスが現在制限されています。
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '16px 20px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-        <div>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>現在のプラン</span>
-          <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 'bold', color: '#0ea5e9' }}>{subscription.plan.toUpperCase()}</h3>
-        </div>
-        
-        <div>
-          {billingLoading ? (
-            <Loader className="animate-spin" size={20} />
-          ) : subscription.stripeSubscriptionId ? (
-            <button onClick={handleOpenStripePortal} className="submit-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px', cursor: 'pointer' }}>
-              <ExternalLink size={14} />
-              <span>サブスクリプションを管理 (ポータル)</span>
-            </button>
-          ) : isOwner ? (
-            <button 
-              onClick={() => {
-                const reason = prompt("上位プラン（または利用枠拡大）の申請理由や希望部署名を入力してください：", "部署利用拡大のため");
-                if (reason) {
-                  alert("スーパー管理者（システム管理者）へ上位プランの変更申請を送信しました。管理者の承認をお待ちください。");
-                }
-              }} 
-              className="submit-btn" 
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px', cursor: 'pointer', background: 'var(--accent-primary)' }}
-            >
-              <span>スーパー管理者に上位プランを申請</span>
-            </button>
-          ) : (
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>上位プラン申請はオーナーのみ可能です</span>
-          )}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 8px 0' }}>現在のプラン: {subscription.plan || 'Free Community'}</h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+          {isEn ? 'Basic resources are unlimited for self-host. Sponsor features unlocked via GitHub Sponsor.' : 'セルフホスト環境のため基本データ容量は完全無料・無制限です。🔒 マークの限定機能は GitHub スポンサー登録で解放されます。'}
+        </p>
       </div>
-
-      {/* 制限値メーター */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-        {/* チャンネル */}
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>チャンネル数</span>
-            <strong style={{ color: 'var(--text-primary)' }}>{subscription.channelUsed} / {subscription.channelLimit >= 9999 ? '無制限' : subscription.channelLimit}</strong>
-          </div>
-          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: '#0ea5e9', width: `${subscription.channelLimit >= 9999 ? 0 : Math.min(100, (subscription.channelUsed / subscription.channelLimit) * 100)}%` }}></div>
-          </div>
-        </div>
-
-        {/* メンバー */}
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>メンバー数</span>
-            <strong style={{ color: 'var(--text-primary)' }}>{subscription.memberUsed} / {subscription.memberLimit >= 9999 ? '無制限' : subscription.memberLimit}</strong>
-          </div>
-          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: '#6366f1', width: `${subscription.memberLimit >= 9999 ? 0 : Math.min(100, (subscription.memberUsed / subscription.memberLimit) * 100)}%` }}></div>
-          </div>
-        </div>
-
-        {/* 容量 */}
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>ストレージ容量</span>
-            <strong style={{ color: 'var(--text-primary)' }}>{formatSize(subscription.storageUsed)} / {formatSize(subscription.storageLimit)}</strong>
-          </div>
-          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: '#10b981', width: `${subscription.storageLimit >= 9999999999 ? 0 : Math.min(100, (subscription.storageUsed / subscription.storageLimit) * 100)}%` }}></div>
-          </div>
-        </div>
-      </div>
-
-      {/* 機能制限表示 */}
-      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>DM機能:</span>
-          <span style={{ color: subscription.dmEnabled !== false ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{subscription.dmEnabled !== false ? '有効' : '無効'}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>メディアアップロード:</span>
-          <span style={{ color: subscription.mediaEnabled !== false ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{subscription.mediaEnabled !== false ? '有効' : '無効'}</span>
-        </div>
-        {subscription.allowedExtensions && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>許可拡張子:</span>
-            <span style={{ color: '#0ea5e9', fontWeight: 'bold' }}>{subscription.allowedExtensions}</span>
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>メッセージ保存期間:</span>
-          <span style={{ color: 'var(--text-muted)' }}>
-            {(subscription.msgRetentionDays ?? 0) === 0 ? '日数無制限' : `${subscription.msgRetentionDays}日間`}
-            {' / '}
-            {(subscription.msgRetentionCount ?? 0) === 0 ? '件数無制限' : `${subscription.msgRetentionCount}件まで`}
-          </span>
-        </div>
-      </div>
-
-      {/* プラン変更テーブル */}
-      {subscription.stripeEnabled && ENABLE_STRIPE_FEATURE && isOwner && !subscription.stripeSubscriptionId && publicPlans.length > 0 && (
-        <div style={{ marginTop: '12px' }}>
-          <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 'bold' }}>プランをアップグレード / 変更</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {publicPlans.map(plan => (
-              <div key={plan.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
-                <div>
-                  <strong style={{ fontSize: '13px' }}>{plan.name}</strong>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    メンバー: {plan.member_limit >= 9999 ? '無制限' : `${plan.member_limit}名`} | 
-                    ストレージ: {plan.storage_limit >= 9999999999 ? '無制限' : formatSize(plan.storage_limit)} | 
-                    保存日数: {(plan.msg_retention_days ?? 0) === 0 ? '無制限' : `${plan.msg_retention_days}日`}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{plan.price_amount > 0 ? `${plan.price_amount.toLocaleString()} ${plan.price_currency.toUpperCase()}/月` : '無料'}</span>
-                  {plan.id !== subscription.plan ? (
-                    <button onClick={() => handleUpgrade(plan.id)} disabled={billingLoading} className="submit-btn" style={{ padding: '6px 12px', fontSize: '11px', cursor: 'pointer' }}>
-                      契約する
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>契約中</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-
 // -----------------------------------------------------------------------------
-// 2. 自社監査ログタブ
+// 2. 自社監査ログタブ 🔒
 // -----------------------------------------------------------------------------
 export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   workspaceId,
-  workspaceName,
-  currentUserRole
+  workspaceName
 }) => {
   const { t } = useLanguage();
   const isEn = t('error') === 'Error';
@@ -302,15 +133,14 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   const [auditSearchQuery, setAuditSearchQuery] = useState('');
   const [auditActionFilter, setAuditActionFilter] = useState('');
 
-  // 監査ログ読み込み
   const loadAuditLogs = async () => {
     setAuditLoading(true);
     try {
-      const res = await apiClient.get<{ success: boolean; data: WorkspaceAuditLog[] }>(
+      const res = await apiClient.get<{ success: boolean; logs: WorkspaceAuditLog[] }>(
         `/api/workspaces/${workspaceId}/audit-logs`
       );
-      if (res.success && Array.isArray(res.data)) {
-        setAuditLogs(res.data);
+      if (res.success && Array.isArray(res.logs)) {
+        setAuditLogs(res.logs);
       }
     } catch (e) {
       console.error("Failed to load workspace audit logs:", e);
@@ -323,7 +153,6 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
     loadAuditLogs();
   }, [workspaceId]);
 
-  // CSVエクスポート
   const handleExportWorkspaceAuditLogs = () => {
     if (auditLogs.length === 0) return;
     const headersLine = ["ID", "User Name", "Action", "Details", "IP Address", "Created At"];
@@ -331,14 +160,14 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
       log.id,
       log.userName || "System",
       log.action,
-      log.details.replace(/"/g, '""'),
+      typeof log.details === 'string' ? log.details.replace(/"/g, '""') : JSON.stringify(log.details),
       log.ip_address || "",
       log.created_at
     ]);
 
     const csvContent = "\uFEFF" + [
       headersLine.join(","),
-      ...rows.map(row => row.map(val => `"${val}"`).join(","))
+      ...rows.map(e => e.map(val => `"${val}"`).join(","))
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -354,8 +183,7 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   const filteredAuditLogs = auditLogs.filter(log => {
     const textMatch = 
       (log.action?.toLowerCase().includes(auditSearchQuery.toLowerCase())) ||
-      (log.userName?.toLowerCase().includes(auditSearchQuery.toLowerCase())) ||
-      (log.details?.toLowerCase().includes(auditSearchQuery.toLowerCase()));
+      (log.userName?.toLowerCase().includes(auditSearchQuery.toLowerCase()));
 
     const actionMatch = auditActionFilter ? log.action === auditActionFilter : true;
     return textMatch && actionMatch;
@@ -417,60 +245,243 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
       <div style={{ display: 'flex', gap: '10px' }}>
         <input 
           type="text" 
-          placeholder="ユーザー、アクション、詳細で検索..." 
+          placeholder="ユーザー、アクションで検索..." 
           value={auditSearchQuery} 
           onChange={(e) => setAuditSearchQuery(e.target.value)} 
           className="form-input"
-          style={{ flex: 1, marginBottom: 0, padding: '6px 10px', fontSize: '12px' }} 
+          style={{ flex: 1, fontSize: '12px' }}
         />
-        <select 
-          value={auditActionFilter} 
-          onChange={(e) => setAuditActionFilter(e.target.value)} 
-          className="form-input"
-          style={{ width: '150px', marginBottom: 0, padding: '6px', fontSize: '12px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
-        >
-          <option value="">全アクション</option>
-          <option value="user_login">ログイン</option>
-          <option value="workspace_update">WS更新</option>
-          <option value="member_add">メンバー追加</option>
-          <option value="member_remove">メンバー除外</option>
-          <option value="channel_create">チャンネル作成</option>
-          <option value="channel_delete">チャンネル削除</option>
-          <option value="file_upload">アップロード</option>
-          <option value="file_delete">ファイル削除</option>
-          <option value="plan_change">プラン変更</option>
-        </select>
       </div>
 
-      <div style={{ border: '1px solid var(--border-light)', borderRadius: '6px', overflow: 'hidden' }}>
-        <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-light)', color: 'var(--text-muted)' }}>
-                <th style={{ padding: '8px 12px' }}>日時</th>
-                <th style={{ padding: '8px 12px' }}>ユーザー</th>
-                <th style={{ padding: '8px 12px' }}>アクション</th>
-                <th style={{ padding: '8px 12px' }}>詳細</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLoading ? (
-                <tr><td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>ログを読み込み中...</td></tr>
-              ) : filteredAuditLogs.length > 0 ? (
-                filteredAuditLogs.map(log => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-primary)' }}>
-                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{new Date(log.created_at).toLocaleString()}</td>
-                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{log.userName || 'SYSTEM'}</td>
-                    <td style={{ padding: '8px 12px' }}><span style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>{log.action}</span></td>
-                    <td style={{ padding: '8px 12px', color: 'var(--text-muted)', fontFamily: 'monospace', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.details}>{log.details}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>ログはありません。</td></tr>
-              )}
-            </tbody>
-          </table>
+      <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
+        {auditLoading ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}><Loader className="animate-spin" size={20} /></div>
+        ) : filteredAuditLogs.length > 0 ? (
+          filteredAuditLogs.map(log => (
+            <div key={log.id} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-light)', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--accent-color, #3b82f6)' }}>{log.action}</span>
+                <span style={{ color: 'var(--text-muted)' }}>{log.created_at ? new Date(log.created_at).toLocaleString() : ''}</span>
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>{log.userName || 'System'} ({log.ip_address || 'IP N/A'})</div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>ログがありません。</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// -----------------------------------------------------------------------------
+// 3. 一斉送信お知らせタブ 🔒 (掲載期間 startAt / endAt 設定対応)
+// -----------------------------------------------------------------------------
+export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () => {
+  const { t } = useLanguage();
+  const isEn = t('error') === 'Error';
+
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // フォームステート
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [type, setType] = useState('info');
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadAnnouncements = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get<{ success: boolean; announcements: Announcement[] }>('/api/admin/announcements');
+      if (res.success && Array.isArray(res.announcements)) {
+        setAnnouncements(res.announcements);
+      }
+    } catch (e) {
+      console.error("Failed to load admin announcements:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
+
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    setSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await apiClient.post<{ success: boolean; error?: string }>('/api/admin/announcements', {
+        title,
+        content,
+        type,
+        startAt: startAt ? new Date(startAt).toISOString() : null,
+        endAt: endAt ? new Date(endAt).toISOString() : null,
+      });
+
+      if (res.success) {
+        setTitle('');
+        setContent('');
+        setStartAt('');
+        setEndAt('');
+        loadAnnouncements();
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'お知らせの追加に失敗しました。');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('このお知らせを削除しますか？')) return;
+    try {
+      await apiClient.delete(`/api/admin/announcements/${id}`);
+      loadAnnouncements();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 🔒 1件制限バッジ */}
+      <div style={{
+        padding: '12px 16px',
+        background: 'rgba(245, 158, 11, 0.08)',
+        border: '1px solid rgba(245, 158, 11, 0.25)',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '13px',
+        color: 'var(--text-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>🔒</span>
+          <span>
+            {isEn
+              ? 'Community Edition: Max 1 active announcement allowed. Upgrade via GitHub Sponsor for unlimited announcements.'
+              : 'コミュニティ版: 同時掲載できる一斉送信お知らせは最大1件までです。🔒 GitHub スポンサー登録で無制限作成できます。'}
+          </span>
         </div>
+        <a 
+          href="https://github.com/sponsors" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{
+            padding: '6px 12px',
+            background: '#f59e0b',
+            color: '#fff',
+            borderRadius: '6px',
+            textDecoration: 'none',
+            fontSize: '12px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <span>GitHub Sponsor 🔒</span>
+          <ExternalLink size={12} />
+        </a>
+      </div>
+
+      {errorMsg && (
+        <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px' }}>
+          {errorMsg}
+        </div>
+      )}
+
+      {/* 新規登録フォーム (掲載期間設定付き) */}
+      <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'var(--bg-secondary)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>新規お知らせ作成 (掲載期間設定)</h4>
+        
+        <input 
+          type="text" 
+          placeholder="タイトル *" 
+          value={title} 
+          onChange={e => setTitle(e.target.value)} 
+          required 
+          className="form-input" 
+          style={{ fontSize: '12px' }} 
+        />
+
+        <textarea 
+          placeholder="お知らせ内容 (任意)" 
+          value={content} 
+          onChange={e => setContent(e.target.value)} 
+          className="form-input" 
+          style={{ fontSize: '12px', height: '60px', resize: 'vertical' }} 
+        />
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>掲載開始日時 (指定なしで即時)</label>
+            <input 
+              type="datetime-local" 
+              value={startAt} 
+              onChange={e => setStartAt(e.target.value)} 
+              className="form-input" 
+              style={{ fontSize: '11px' }} 
+            />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>掲載終了日時 (指定なしで無期限)</label>
+            <input 
+              type="datetime-local" 
+              value={endAt} 
+              onChange={e => setEndAt(e.target.value)} 
+              className="form-input" 
+              style={{ fontSize: '11px' }} 
+            />
+          </div>
+          <div style={{ width: '100px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>タイプ</label>
+            <select value={type} onChange={e => setType(e.target.value)} className="form-input" style={{ fontSize: '11px' }}>
+              <option value="info">情報</option>
+              <option value="warning">警告</option>
+              <option value="critical">緊急</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" disabled={submitting} className="submit-btn" style={{ padding: '8px 16px', fontSize: '12px', alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {submitting ? <Loader className="animate-spin" size={14} /> : <Plus size={14} />}
+          <span>お知らせを追加 🔒</span>
+        </button>
+      </form>
+
+      {/* お知らせ一覧 */}
+      <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}><Loader className="animate-spin" size={20} /></div>
+        ) : announcements.length > 0 ? (
+          announcements.map(ann => (
+            <div key={ann.id} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '13px' }}>{ann.title}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  掲載期間: {ann.startAt ? new Date(ann.startAt).toLocaleString() : '即時'} 〜 {ann.endAt ? new Date(ann.endAt).toLocaleString() : '無期限'}
+                </div>
+              </div>
+              <button onClick={() => handleDelete(ann.id)} style={{ padding: '4px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>登録されているお知らせはありません。</div>
+        )}
       </div>
     </div>
   );
