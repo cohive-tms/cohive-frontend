@@ -204,11 +204,11 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
         color: 'var(--text-primary)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>🔒</span>
+          <Lock size={16} color="#3b82f6" />
           <span>
             {isEn
               ? 'Community Edition: Audit logs are retained for 7 days. Upgrade via GitHub Sponsor to unlock full history.'
-              : 'コミュニティ版: 監査ログは直近7日間分が表示されます。🔒 GitHub スポンサー登録で全期間の過去ログが無制限解放されます。'}
+              : 'コミュニティ版: 監査ログは直近7日間分が表示されます。GitHub スポンサー登録で全期間の過去ログが無制限解放されます。'}
           </span>
         </div>
         <a 
@@ -226,10 +226,11 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
             whiteSpace: 'nowrap',
             display: 'flex',
             alignItems: 'center',
-            gap: '4px'
+            gap: '6px'
           }}
         >
-          <span>GitHub Sponsor 🔒</span>
+          <Lock size={12} />
+          <span>GitHub Sponsor 解放</span>
           <ExternalLink size={12} />
         </a>
       </div>
@@ -275,7 +276,7 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
 };
 
 // -----------------------------------------------------------------------------
-// 3. 一斉送信お知らせタブ 🔒 (掲載期間 startAt / endAt 設定対応)
+// 3. 一斉送信お知らせ/全体告知タブ 🔒 (掲載期間 startAt / endAt 設定対応)
 // -----------------------------------------------------------------------------
 export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () => {
   const { t } = useLanguage();
@@ -335,14 +336,14 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
         loadAnnouncements();
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'お知らせの追加に失敗しました。');
+      setErrorMsg(err.message || '全体告知メッセージの追加に失敗しました。');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このお知らせを削除しますか？')) return;
+    if (!confirm('この告知メッセージを削除しますか？')) return;
     try {
       await apiClient.delete(`/api/admin/announcements/${id}`);
       loadAnnouncements();
@@ -350,6 +351,8 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
       console.error(e);
     }
   };
+
+  const isAnnLimitReached = announcements.length >= 1;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -366,11 +369,11 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
         color: 'var(--text-primary)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>🔒</span>
+          <Lock size={16} color="#f59e0b" />
           <span>
             {isEn
               ? 'Community Edition: Max 1 active announcement allowed. Upgrade via GitHub Sponsor for unlimited announcements.'
-              : 'コミュニティ版: 同時掲載できる一斉送信お知らせは最大1件までです。🔒 GitHub スポンサー登録で無制限作成できます。'}
+              : 'コミュニティ版: 全体告知メッセージの同時登録は最大 1 件までです。GitHub スポンサー登録で無制限作成できます。'}
           </span>
         </div>
         <a 
@@ -388,27 +391,37 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
             whiteSpace: 'nowrap',
             display: 'flex',
             alignItems: 'center',
-            gap: '4px'
+            gap: '6px'
           }}
         >
-          <span>GitHub Sponsor 🔒</span>
+          <Lock size={12} />
+          <span>GitHub Sponsor 解放</span>
           <ExternalLink size={12} />
         </a>
       </div>
 
       {errorMsg && (
-        <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px' }}>
-          {errorMsg}
+        <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Lock size={16} />
+          <span>{errorMsg}</span>
         </div>
       )}
 
       {/* 新規登録フォーム (掲載期間設定付き) */}
       <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'var(--bg-secondary)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>新規お知らせ作成 (掲載期間設定)</h4>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>新規全体告知作成 (掲載期間設定)</h4>
+          {isAnnLimitReached && (
+            <span style={{ fontSize: '11px', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Lock size={12} />
+              <span>登録上限到達 (MAX 1件)</span>
+            </span>
+          )}
+        </div>
         
         <input 
           type="text" 
-          placeholder="タイトル *" 
+          placeholder="告知タイトル *" 
           value={title} 
           onChange={e => setTitle(e.target.value)} 
           required 
@@ -417,7 +430,7 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
         />
 
         <textarea 
-          placeholder="お知らせ内容 (任意)" 
+          placeholder="告知本文 (任意)" 
           value={content} 
           onChange={e => setContent(e.target.value)} 
           className="form-input" 
@@ -448,16 +461,30 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
           <div style={{ width: '100px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>タイプ</label>
             <select value={type} onChange={e => setType(e.target.value)} className="form-input" style={{ fontSize: '11px' }}>
-              <option value="info">情報</option>
+              <option value="info">通常</option>
               <option value="warning">警告</option>
               <option value="critical">緊急</option>
             </select>
           </div>
         </div>
 
-        <button type="submit" disabled={submitting} className="submit-btn" style={{ padding: '8px 16px', fontSize: '12px', alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {submitting ? <Loader className="animate-spin" size={14} /> : <Plus size={14} />}
-          <span>お知らせを追加 🔒</span>
+        <button 
+          type="submit" 
+          disabled={submitting} 
+          className="submit-btn" 
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '12px', 
+            alignSelf: 'flex-end', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px',
+            background: isAnnLimitReached ? 'var(--bg-tertiary)' : undefined,
+            color: isAnnLimitReached ? 'var(--text-muted)' : undefined
+          }}
+        >
+          {submitting ? <Loader className="animate-spin" size={14} /> : isAnnLimitReached ? <Lock size={14} color="#f59e0b" /> : <Plus size={14} />}
+          <span>{isAnnLimitReached ? '全体告知を登録 (スポンサー限定)' : '全体告知を配信'}</span>
         </button>
       </form>
 
@@ -480,7 +507,7 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
             </div>
           ))
         ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>登録されているお知らせはありません。</div>
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>登録されている全体告知メッセージはありません。</div>
         )}
       </div>
     </div>
