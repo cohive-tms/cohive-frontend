@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Shield, Users, Lock, LogOut, FileText, Plus, Trash2, Megaphone, ExternalLink, Loader, CheckCircle2, AlertTriangle, Sparkles
+  Shield, Users, Lock, LogOut, FileText, Plus, Trash2, Megaphone, ExternalLink, Loader, CheckCircle2, AlertTriangle, Sparkles, Edit3, X, Calendar, Clock, RotateCcw
 } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
@@ -64,6 +64,15 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
   const [submittingAnn, setSubmittingAnn] = useState(false);
+
+  // 編集モーダルステート
+  const [editingAnn, setEditingAnn] = useState<Announcement | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editType, setEditType] = useState('info');
+  const [editStartAt, setEditStartAt] = useState('');
+  const [editEndAt, setEditEndAt] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
 
   // 監査ログステート
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -180,6 +189,53 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     }
   };
 
+  // 告知編集モーダルを開く
+  const openEditModal = (ann: Announcement) => {
+    setEditingAnn(ann);
+    setEditTitle(ann.title);
+    setEditContent(ann.content || '');
+    setEditType(ann.type || 'info');
+    // ISO文字を datetime-local 入力用形式に変換 (YYYY-MM-DDTHH:mm)
+    const formatForInput = (isoStr?: string | null) => {
+      if (!isoStr) return '';
+      try {
+        const d = new Date(isoStr);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch {
+        return '';
+      }
+    };
+    setEditStartAt(formatForInput(ann.startAt));
+    setEditEndAt(formatForInput(ann.endAt));
+  };
+
+  // 告知更新実行
+  const handleUpdateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAnn || !editTitle.trim()) return;
+
+    setSubmittingEdit(true);
+    try {
+      const res = await apiClient.put<{ success: boolean; error?: string }>(`/api/admin/announcements/${editingAnn.id}`, {
+        title: editTitle,
+        content: editContent,
+        type: editType,
+        startAt: editStartAt ? new Date(editStartAt).toISOString() : null,
+        endAt: editEndAt ? new Date(editEndAt).toISOString() : null,
+      });
+
+      if (res.success) {
+        setEditingAnn(null);
+        loadAnnouncements();
+      }
+    } catch (err: any) {
+      alert(err.message || '告知の更新に失敗しました。');
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
   const handleDeleteAnnouncement = async (id: string) => {
     if (!confirm('この告知メッセージを削除しますか？')) return;
     try {
@@ -188,6 +244,22 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // 掲載状態判定ヘルパー
+  const getAnnouncementStatus = (ann: Announcement) => {
+    if (!ann.isActive) return { label: '非アクティブ', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)' };
+    const now = new Date();
+    const start = ann.startAt ? new Date(ann.startAt) : null;
+    const end = ann.endAt ? new Date(ann.endAt) : null;
+
+    if (start && now < start) {
+      return { label: '掲載予約中', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.2)' };
+    }
+    if (end && now > end) {
+      return { label: '掲載終了 (期限切れ)', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.2)' };
+    }
+    return { label: '配信中', color: '#34d399', bg: 'rgba(16, 185, 129, 0.2)' };
   };
 
   // 新規管理者アカウント作成
@@ -375,7 +447,15 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: '#94a3b8' }}>掲載開始日時 (指定なしで即時)</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} />
+                    <span>掲載開始日時 (指定なしで即時配信)</span>
+                  </label>
+                  {startAt && (
+                    <button type="button" onClick={() => setStartAt('')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', padding: 0 }}>クリア</button>
+                  )}
+                </div>
                 <input 
                   type="datetime-local" 
                   value={startAt} 
@@ -386,7 +466,15 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
               </div>
 
               <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: '#94a3b8' }}>掲載終了日時 (指定なしで無期限)</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} />
+                    <span>掲載終了日時 (任意・指定なしで無期限)</span>
+                  </label>
+                  {endAt && (
+                    <button type="button" onClick={() => setEndAt('')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', padding: 0 }}>無期限にする</button>
+                  )}
+                </div>
                 <input 
                   type="datetime-local" 
                   value={endAt} 
@@ -428,7 +516,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             </button>
           </form>
 
-          {/* 全体告知メッセージ一覧 */}
+          {/* 全体告知メッセージ一覧 (掲載期間表示・編集機能付き) */}
           <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', fontWeight: 700, fontSize: '14px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>登録済み全体告知メッセージ一覧</span>
@@ -437,25 +525,148 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             {annLoading ? (
               <div style={{ padding: '30px', textAlign: 'center' }}><Loader className="animate-spin" size={24} /></div>
             ) : announcements.length > 0 ? (
-              announcements.map(ann => (
-                <div key={ann.id} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '14px', color: '#f8fafc' }}>{ann.title}</div>
-                    {ann.content && <div style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '4px' }}>{ann.content}</div>}
-                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                      掲載期間: {ann.startAt ? new Date(ann.startAt).toLocaleString() : '即時開始'} 〜 {ann.endAt ? new Date(ann.endAt).toLocaleString() : '無期限'}
+              announcements.map(ann => {
+                const status = getAnnouncementStatus(ann);
+                return (
+                  <div key={ann.id} style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc' }}>{ann.title}</span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: status.bg, color: status.color, fontWeight: 700 }}>
+                          {status.label}
+                        </span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(51, 65, 85, 0.5)', color: '#94a3b8' }}>
+                          タイプ: {ann.type === 'critical' ? '緊急' : ann.type === 'warning' ? '警告' : '通常'}
+                        </span>
+                      </div>
+
+                      {ann.content && <div style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '6px', whiteSpace: 'pre-wrap' }}>{ann.content}</div>}
+
+                      {/* 掲載期間のわかりやすい表示 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', color: '#38bdf8', marginTop: '10px', background: 'rgba(15, 23, 42, 0.6)', padding: '6px 12px', borderRadius: '6px', width: 'fit-content', border: '1px solid #1e293b' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={13} />
+                          <span>開始: {ann.startAt ? new Date(ann.startAt).toLocaleString('ja-JP') : '即時開始'}</span>
+                        </span>
+                        <span>〜</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={13} />
+                          <span>終了: {ann.endAt ? new Date(ann.endAt).toLocaleString('ja-JP') : '無期限'}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => openEditModal(ann)} style={{ padding: '6px 12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                        <Edit3 size={14} />
+                        <span>掲載期間・内容編集</span>
+                      </button>
+                      <button onClick={() => handleDeleteAnnouncement(ann.id)} style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                        <Trash2 size={14} />
+                        <span>削除</span>
+                      </button>
                     </div>
                   </div>
-                  <button onClick={() => handleDeleteAnnouncement(ann.id)} style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Trash2 size={14} />
-                    <span>削除</span>
-                  </button>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>配信中の全体告知メッセージはありません。</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 告知編集モーダル */}
+      {editingAnn && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
+          <form onSubmit={handleUpdateAnnouncement} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '550px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={18} />
+                <span>全体告知アイテムの編集 (掲載期間設定)</span>
+              </h3>
+              <button type="button" onClick={() => setEditingAnn(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8' }}>告知タイトル *</label>
+              <input 
+                type="text" 
+                value={editTitle} 
+                onChange={e => setEditTitle(e.target.value)} 
+                required 
+                style={{ padding: '10px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '13px' }} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8' }}>告知本文</label>
+              <textarea 
+                value={editContent} 
+                onChange={e => setEditContent(e.target.value)} 
+                style={{ padding: '10px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '13px', height: '80px', resize: 'vertical' }} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={13} />
+                    <span>掲載開始日時 (指定なしで即時)</span>
+                  </label>
+                  {editStartAt && (
+                    <button type="button" onClick={() => setEditStartAt('')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', padding: 0 }}>即時にする</button>
+                  )}
+                </div>
+                <input 
+                  type="datetime-local" 
+                  value={editStartAt} 
+                  onChange={e => setEditStartAt(e.target.value)} 
+                  style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }} 
+                />
+              </div>
+
+              <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={13} />
+                    <span>掲載終了日時 (任意・指定なしで無期限)</span>
+                  </label>
+                  {editEndAt && (
+                    <button type="button" onClick={() => setEditEndAt('')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', padding: 0 }}>無期限にする</button>
+                  )}
+                </div>
+                <input 
+                  type="datetime-local" 
+                  value={editEndAt} 
+                  onChange={e => setEditEndAt(e.target.value)} 
+                  style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }} 
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8' }}>お知らせタイプ</label>
+              <select value={editType} onChange={e => setEditType(e.target.value)} style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }}>
+                <option value="info">通常お知らせ</option>
+                <option value="warning">重要警告</option>
+                <option value="critical">緊急告知</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <button type="button" onClick={() => setEditingAnn(null)} style={{ padding: '8px 16px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                キャンセル
+              </button>
+              <button type="submit" disabled={submittingEdit} style={{ padding: '8px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '6px', cursor: submittingEdit ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {submittingEdit ? <Loader className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                <span>変更内容を保存</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
