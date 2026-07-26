@@ -67,7 +67,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     onLogoutAdmin();
   };
 
-  // アナウンス取得
+  // 全体告知メッセージ取得
   const loadAnnouncements = async () => {
     setAnnLoading(true);
     try {
@@ -107,7 +107,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     if (activeTab === 'audit') loadAuditLogs();
   }, [activeTab]);
 
-  // 新規アナウンス作成
+  // 新規全体告知作成
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -132,14 +132,14 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         loadAnnouncements();
       }
     } catch (err: any) {
-      setAnnError(err.message || 'お知らせの登録に失敗しました。');
+      setAnnError(err.message || '全体告知メッセージの登録に失敗しました。');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
-    if (!confirm('このお知らせを削除しますか？')) return;
+    if (!confirm('この告知メッセージを削除しますか？')) return;
     try {
       await apiClient.delete(`/api/admin/announcements/${id}`);
       loadAnnouncements();
@@ -148,13 +148,15 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     }
   };
 
+  const isAnnLimitReached = announcements.length >= 1;
+
   return (
     <div style={{ padding: '24px 32px', color: '#f8fafc', background: '#090d16', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       {/* ヘッダー */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Shield size={28} color="#0ea5e9" />
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#f8fafc' }}>CoHive SaaS Admin Console</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#f8fafc' }}>CoHive SaaS 管理コンソール</h2>
         </div>
         <button onClick={handleLogout} style={{ padding: '8px 16px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
           <LogOut size={14} />
@@ -162,14 +164,14 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         </button>
       </div>
 
-      {/* タブナビゲーション (🔒 鍵マーク付き) */}
+      {/* タブナビゲーション */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
         <button 
           onClick={() => setActiveTab('announcements')} 
           style={{ padding: '10px 18px', borderRadius: '6px', border: 'none', background: activeTab === 'announcements' ? '#0ea5e9' : 'transparent', color: activeTab === 'announcements' ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <Megaphone size={16} />
-          <span>一斉送信 (お知らせ) 🔒</span>
+          <span>全体告知管理</span>
         </button>
 
         <button 
@@ -177,7 +179,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
           style={{ padding: '10px 18px', borderRadius: '6px', border: 'none', background: activeTab === 'audit' ? '#0ea5e9' : 'transparent', color: activeTab === 'audit' ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <FileText size={16} />
-          <span>全社監査ログ 🔒</span>
+          <span>監査ログ</span>
         </button>
 
         <button 
@@ -185,40 +187,50 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
           style={{ padding: '10px 18px', borderRadius: '6px', border: 'none', background: activeTab === 'admins' ? '#0ea5e9' : 'transparent', color: activeTab === 'admins' ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <Users size={16} />
-          <span>管理者アカウント 🔒</span>
+          <span>管理者アカウント</span>
         </button>
       </div>
 
-      {/* 1. 一斉送信（お知らせ & 掲載期間設定）タブ */}
+      {/* 1. 全体告知管理 タブ (MAX 1件制限 & 掲載期間指定) */}
       {activeTab === 'announcements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* 🔒 スポンサー案内バッジ */}
+          {/* 制限案内バッジ (未スポンサー時) */}
           <div style={{ padding: '14px 18px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f59e0b' }}>
-              <Lock size={20} />
+              <Lock size={18} />
               <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                コミュニティ版: 一斉送信お知らせの同時掲載は最大 1 件までです。🔒 GitHub スポンサー登録で無制限作成できます。
+                コミュニティ版: 全体告知メッセージは最大 1 件まで登録可能です（現在 {announcements.length} / 1 件）。GitHub スポンサー登録で無制限作成できます。
               </span>
             </div>
-            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#f59e0b', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span>GitHub Sponsor 🔒</span>
+            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#f59e0b', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lock size={12} />
+              <span>GitHub Sponsor 解放</span>
               <ExternalLink size={12} />
             </a>
           </div>
 
           {annError && (
-            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px' }}>
-              {annError}
+            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lock size={16} />
+              <span>{annError}</span>
             </div>
           )}
 
-          {/* 新規アナウンス作成フォーム (掲載期間付き) */}
+          {/* 新規全体告知登録フォーム */}
           <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: '#0f172a', padding: '20px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#38bdf8' }}>新規お知らせ配信（掲載期間設定付き）</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#38bdf8' }}>新規全体告知メッセージ作成 (掲載期間設定)</h3>
+              {isAnnLimitReached && (
+                <span style={{ fontSize: '12px', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Lock size={14} />
+                  <span>登録上限到達 (MAX 1件)</span>
+                </span>
+              )}
+            </div>
 
             <input 
               type="text" 
-              placeholder="タイトル *" 
+              placeholder="告知タイトル *" 
               value={title} 
               onChange={e => setTitle(e.target.value)} 
               required 
@@ -226,7 +238,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             />
 
             <textarea 
-              placeholder="配信内容（任意）" 
+              placeholder="告知本文（任意）" 
               value={content} 
               onChange={e => setContent(e.target.value)} 
               style={{ padding: '10px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '13px', height: '70px', resize: 'vertical' }} 
@@ -253,26 +265,42 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                 />
               </div>
 
-              <div style={{ width: '120px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: '#94a3b8' }}>種別</label>
+              <div style={{ width: '130px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: '#94a3b8' }}>タイプ</label>
                 <select value={type} onChange={e => setType(e.target.value)} style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }}>
-                  <option value="info">通常通知</option>
+                  <option value="info">通常お知らせ</option>
                   <option value="warning">重要警告</option>
-                  <option value="critical">緊急メンテ</option>
+                  <option value="critical">緊急告知</option>
                 </select>
               </div>
             </div>
 
-            <button type="submit" disabled={submitting} style={{ padding: '10px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {submitting ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
-              <span>配信を開始 🔒</span>
+            <button 
+              type="submit" 
+              disabled={submitting} 
+              style={{ 
+                padding: '10px 20px', 
+                background: isAnnLimitReached ? '#334155' : '#0ea5e9', 
+                color: isAnnLimitReached ? '#94a3b8' : '#fff', 
+                border: 'none', 
+                borderRadius: '6px', 
+                cursor: submitting ? 'not-allowed' : 'pointer', 
+                fontWeight: 700, 
+                alignSelf: 'flex-end', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px' 
+              }}
+            >
+              {submitting ? <Loader className="animate-spin" size={16} /> : isAnnLimitReached ? <Lock size={16} color="#f59e0b" /> : <Plus size={16} />}
+              <span>{isAnnLimitReached ? '全体告知を登録 (スポンサー限定)' : '全体告知を配信'}</span>
             </button>
           </form>
 
-          {/* アナウンス一覧 */}
+          {/* 全体告知メッセージ一覧 */}
           <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', fontWeight: 700, fontSize: '14px', color: '#94a3b8' }}>
-              登録済みお知らせ一覧
+              登録済み全体告知メッセージ一覧
             </div>
             {annLoading ? (
               <div style={{ padding: '30px', textAlign: 'center' }}><Loader className="animate-spin" size={24} /></div>
@@ -292,24 +320,25 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                 </div>
               ))
             ) : (
-              <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>配信中のお知らせはありません。</div>
+              <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>配信中の全体告知メッセージはありません。</div>
             )}
           </div>
         </div>
       )}
 
-      {/* 2. 全社監査ログ タブ */}
+      {/* 2. 監査ログ タブ (直近7日間制限) */}
       {activeTab === 'audit' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ padding: '14px 18px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#60a5fa' }}>
-              <Lock size={20} />
+              <Lock size={18} />
               <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                コミュニティ版: 全社監査ログは直近 7 日間分が表示されます。🔒 GitHub スポンサー登録で過去ログが無制限解放されます。
+                コミュニティ版: 全社監査ログは直近 7 日間分が表示されます。GitHub スポンサー登録で過去ログが無制限解放されます。
               </span>
             </div>
-            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#3b82f6', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span>GitHub Sponsor 🔒</span>
+            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#3b82f6', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lock size={12} />
+              <span>GitHub Sponsor 解放</span>
               <ExternalLink size={12} />
             </a>
           </div>
@@ -334,18 +363,19 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         </div>
       )}
 
-      {/* 3. 管理者アカウント タブ */}
+      {/* 3. 管理者アカウント タブ (MAX 1名制限) */}
       {activeTab === 'admins' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ padding: '14px 18px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#34d399' }}>
-              <Lock size={20} />
+              <Lock size={18} />
               <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                コミュニティ版: 管理者アカウントは最大 1 名まで設定可能です。🔒 GitHub スポンサー登録で複数管理者を解禁できます。
+                コミュニティ版: 管理者アカウントは最大 1 名まで設定可能です。GitHub スポンサー登録で複数管理者を解禁できます。
               </span>
             </div>
-            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#10b981', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span>GitHub Sponsor 🔒</span>
+            <a href="https://github.com/sponsors" target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#10b981', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lock size={12} />
+              <span>GitHub Sponsor 解放</span>
               <ExternalLink size={12} />
             </a>
           </div>
