@@ -363,6 +363,49 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
 
   return (
     <div className="settings-form-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 🔒 鍵マーク & 7日間制限案内バッジ */}
+      <div style={{
+        padding: '12px 16px',
+        background: 'rgba(59, 130, 246, 0.08)',
+        border: '1px solid rgba(59, 130, 246, 0.2)',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '13px',
+        color: 'var(--text-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>🔒</span>
+          <span>
+            {isEn
+              ? 'Community Edition: Audit logs are retained for 7 days. Upgrade via GitHub Sponsor to unlock full history.'
+              : 'コミュニティ版: 監査ログは直近7日間分が表示されます。🔒 GitHub スポンサー登録で全期間の過去ログが無制限解放されます。'}
+          </span>
+        </div>
+        <a 
+          href="https://github.com/sponsors" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{
+            padding: '6px 12px',
+            background: 'var(--accent-color, #3b82f6)',
+            color: '#fff',
+            borderRadius: '6px',
+            textDecoration: 'none',
+            fontSize: '12px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <span>GitHub Sponsor 🔒</span>
+          <ExternalLink size={12} />
+        </a>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>自社監査ログ</h3>
         <button onClick={handleExportWorkspaceAuditLogs} disabled={filteredAuditLogs.length === 0} style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', borderRadius: '4px', fontSize: '11px', cursor: filteredAuditLogs.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
