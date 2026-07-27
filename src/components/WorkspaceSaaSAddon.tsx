@@ -31,17 +31,6 @@ interface WorkspaceAuditLog {
   created_at: string;
 }
 
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  isActive: boolean | number;
-  startAt?: string | null;
-  endAt?: string | null;
-  createdAt: string;
-}
-
 interface SubscriptionData {
   plan: string;
   storageLimit: number;
@@ -65,8 +54,8 @@ interface WorkspaceSaaSAddonProps {
   workspaceId: string;
   workspaceName: string;
   currentUserRole: 'owner' | 'group_admin' | 'member' | 'guest';
-  subscription?: SubscriptionData | null;
-  onRefreshSubscription?: () => void;
+  subscription: SubscriptionData | null;
+  onRefreshSubscription: () => void;
 }
 
 // -----------------------------------------------------------------------------
@@ -86,6 +75,7 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
   const [publicPlans, setPublicPlans] = useState<PublicPlan[]>([]);
   const [billingLoading, setBillingLoading] = useState(false);
 
+  // プラン一覧取得
   useEffect(() => {
     const loadPublicPlans = async () => {
       try {
@@ -109,22 +99,197 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
     );
   }
 
+  const isSuspended = subscription.status === 'suspended';
+
+  // Stripe Checkout
+  const handleUpgrade = async (planId: string) => {
+    setBillingLoading(true);
+    try {
+      const res = await apiClient.post<{ success: boolean; url: string }>(
+        `/api/workspaces/${workspaceId}/billing/checkout`,
+        { planId }
+      );
+      if (res.success && res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      alert(err.message || "決済画面の起動に失敗しました。");
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  // Stripe Portal
+  const handleOpenStripePortal = async () => {
+    setBillingLoading(true);
+    try {
+      const res = await apiClient.post<{ success: boolean; url: string }>(
+        `/api/workspaces/${workspaceId}/billing/portal`
+      );
+      if (res.success && res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      alert(err.message || "ポータル画面の起動に失敗しました。");
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  // 容量フォーマット
+  const formatSize = (bytes: number) => {
+    if (bytes === Infinity || bytes >= 9999999999) return '無制限';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 8px 0' }}>現在のプラン: {subscription.plan || 'Free Community'}</h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-          {isEn ? 'Basic resources and admin features are unlimited for self-host. Historical audit logs over 7 days are unlocked via GitHub Sponsor.' : 'セルフホスト環境のため基本機能・管理者機能は完全無料・無制限です。全期間の過去監査ログ表示のみ GitHub スポンサー登録で解放されます。'}
-        </p>
+    <div className="settings-form-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {isSuspended && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '16px', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5' }}>
+          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+          <div>
+            <strong>決済が確認できないため、このワークスペースは一時停止されています。</strong><br />
+            お支払い処理を完了するか、契約ポータルから決済情報を更新してください。一般機能（チャット、アップロード等）へのアクセスが現在制限されています。
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '16px 20px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+        <div>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>現在のプラン</span>
+          <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 'bold', color: '#0ea5e9' }}>{subscription.plan.toUpperCase()}</h3>
+        </div>
+        
+        <div>
+          {billingLoading ? (
+            <Loader className="animate-spin" size={20} />
+          ) : subscription.stripeSubscriptionId ? (
+            <button onClick={handleOpenStripePortal} className="submit-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px', cursor: 'pointer' }}>
+              <ExternalLink size={14} />
+              <span>サブスクリプションを管理 (ポータル)</span>
+            </button>
+          ) : isOwner ? (
+            <button 
+              onClick={() => {
+                const reason = prompt("上位プラン（または利用枠拡大）の申請理由や希望部署名を入力してください：", "部署利用拡大のため");
+                if (reason) {
+                  alert("スーパー管理者（システム管理者）へ上位プランの変更申請を送信しました。管理者の承認をお待ちください。");
+                }
+              }} 
+              className="submit-btn" 
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px', cursor: 'pointer', background: 'var(--accent-primary)' }}
+            >
+              <span>スーパー管理者に上位プランを申請</span>
+            </button>
+          ) : (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>上位プラン申請はオーナーのみ可能です</span>
+          )}
+        </div>
       </div>
+
+      {/* 制限値メーター */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+        {/* チャンネル */}
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>チャンネル数</span>
+            <strong style={{ color: 'var(--text-primary)' }}>{subscription.channelUsed} / {subscription.channelLimit >= 9999 ? '無制限' : subscription.channelLimit}</strong>
+          </div>
+          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: '#0ea5e9', width: `${subscription.channelLimit >= 9999 ? 0 : Math.min(100, (subscription.channelUsed / subscription.channelLimit) * 100)}%` }}></div>
+          </div>
+        </div>
+
+        {/* メンバー */}
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>メンバー数</span>
+            <strong style={{ color: 'var(--text-primary)' }}>{subscription.memberUsed} / {subscription.memberLimit >= 9999 ? '無制限' : subscription.memberLimit}</strong>
+          </div>
+          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: '#6366f1', width: `${subscription.memberLimit >= 9999 ? 0 : Math.min(100, (subscription.memberUsed / subscription.memberLimit) * 100)}%` }}></div>
+          </div>
+        </div>
+
+        {/* 容量 */}
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>ストレージ容量</span>
+            <strong style={{ color: 'var(--text-primary)' }}>{formatSize(subscription.storageUsed)} / {formatSize(subscription.storageLimit)}</strong>
+          </div>
+          <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: '#10b981', width: `${subscription.storageLimit >= 9999999999 ? 0 : Math.min(100, (subscription.storageUsed / subscription.storageLimit) * 100)}%` }}></div>
+          </div>
+        </div>
+      </div>
+
+      {/* 機能制限表示 */}
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>DM機能:</span>
+          <span style={{ color: subscription.dmEnabled !== false ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{subscription.dmEnabled !== false ? '有効' : '無効'}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>メディアアップロード:</span>
+          <span style={{ color: subscription.mediaEnabled !== false ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{subscription.mediaEnabled !== false ? '有効' : '無効'}</span>
+        </div>
+        {subscription.allowedExtensions && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>許可拡張子:</span>
+            <span style={{ color: '#0ea5e9', fontWeight: 'bold' }}>{subscription.allowedExtensions}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>メッセージ保存期間:</span>
+          <span style={{ color: 'var(--text-muted)' }}>
+            {(subscription.msgRetentionDays ?? 0) === 0 ? '日数無制限' : `${subscription.msgRetentionDays}日間`}
+            {' / '}
+            {(subscription.msgRetentionCount ?? 0) === 0 ? '件数無制限' : `${subscription.msgRetentionCount}件まで`}
+          </span>
+        </div>
+      </div>
+
+      {/* プラン変更テーブル */}
+      {subscription.stripeEnabled && ENABLE_STRIPE_FEATURE && isOwner && !subscription.stripeSubscriptionId && publicPlans.length > 0 && (
+        <div style={{ marginTop: '12px' }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 'bold' }}>プランをアップグレード / 変更</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {publicPlans.map(plan => (
+              <div key={plan.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
+                <div>
+                  <strong style={{ fontSize: '13px' }}>{plan.name}</strong>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    メンバー: {plan.member_limit >= 9999 ? '無制限' : `${plan.member_limit}名`} | 
+                    ストレージ: {plan.storage_limit >= 9999999999 ? '無制限' : formatSize(plan.storage_limit)} | 
+                    保存日数: {(plan.msg_retention_days ?? 0) === 0 ? '無制限' : `${plan.msg_retention_days}日`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{plan.price_amount > 0 ? `${plan.price_amount.toLocaleString()} ${plan.price_currency.toUpperCase()}/月` : '無料'}</span>
+                  {plan.id !== subscription.plan ? (
+                    <button onClick={() => handleUpgrade(plan.id)} disabled={billingLoading} className="submit-btn" style={{ padding: '6px 12px', fontSize: '11px', cursor: 'pointer' }}>
+                      契約する
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>契約中</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
+
 // -----------------------------------------------------------------------------
-// 2. 自社監査ログタブ 🔒
-// -----------------------------------------------------------------------------
-// 2. 自社監査ログタブ 🔒
+// 2. 自社監査ログタブ
 // -----------------------------------------------------------------------------
 export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   workspaceId,
@@ -153,12 +318,11 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   const loadAuditLogs = async () => {
     setAuditLoading(true);
     try {
-      const res = await apiClient.get<{ success: boolean; data: WorkspaceAuditLog[]; logs?: WorkspaceAuditLog[] }>(
+      const res = await apiClient.get<{ success: boolean; data: WorkspaceAuditLog[] }>(
         `/api/workspaces/${workspaceId}/audit-logs`
       );
-      const logsData = res.success ? (res.data || res.logs || []) : [];
-      if (Array.isArray(logsData)) {
-        setAuditLogs(logsData);
+      if (res.success && Array.isArray(res.data)) {
+        setAuditLogs(res.data);
       }
     } catch (e) {
       console.error("Failed to load workspace audit logs:", e);
@@ -238,8 +402,13 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
 
     // 3. 日付指定（From / To、片方のみも可）
     let dateMatch = true;
-    if (log.created_at) {
-      const logTime = new Date(log.created_at).getTime();
+    const rawDate = log.created_at || (log as any).createdAt;
+    if (rawDate) {
+      let sanitized = rawDate.trim();
+      if (!sanitized.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(sanitized)) {
+        sanitized = sanitized.replace(' ', 'T') + 'Z';
+      }
+      const logTime = new Date(sanitized).getTime();
       if (startDate) {
         const startMs = new Date(`${startDate}T00:00:00`).getTime();
         if (logTime < startMs) dateMatch = false;
@@ -719,377 +888,6 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
           </table>
         </div>
       </div>
-    </div>
-  );
-};
-
-// -----------------------------------------------------------------------------
-// 3. 一斉送信お知らせ/全体告知タブ 🔒 (掲載期間 startAt / endAt 設定対応)
-// -----------------------------------------------------------------------------
-export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () => {
-  const { t } = useLanguage();
-  const isEn = t('error') === 'Error';
-
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // 共通モーダルステート（新規作成 / 編集）
-  const [isAnnModalOpen, setIsAnnModalOpen] = useState(false);
-  const [annModalMode, setAnnModalMode] = useState<'create' | 'edit'>('create');
-  const [targetAnnId, setTargetAnnId] = useState<string | null>(null);
-  const [formTitle, setFormTitle] = useState('');
-  const [formContent, setFormContent] = useState('');
-  const [formType, setFormType] = useState('info');
-  const [formStartAt, setFormStartAt] = useState('');
-  const [formEndAt, setFormEndAt] = useState('');
-  const [formIsActive, setFormIsActive] = useState(true);
-  const [formSubmitting, setFormSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const loadAnnouncements = async () => {
-    setLoading(true);
-    try {
-      const res = await apiClient.get<{ success: boolean; announcements: Announcement[] }>('/api/admin/announcements');
-      if (res.success && Array.isArray(res.announcements)) {
-        setAnnouncements(res.announcements);
-      }
-    } catch (e) {
-      console.error("Failed to load admin announcements:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAnnouncements();
-  }, []);
-
-  const handleOpenCreateModal = () => {
-    setAnnModalMode('create');
-    setTargetAnnId(null);
-    setFormTitle('');
-    setFormContent('');
-    setFormType('info');
-    setFormStartAt('');
-    setFormEndAt('');
-    setFormIsActive(true);
-    setFormError(null);
-    setIsAnnModalOpen(true);
-  };
-
-  const handleOpenEditModal = (ann: Announcement) => {
-    setAnnModalMode('edit');
-    setTargetAnnId(ann.id);
-    setFormTitle(ann.title || '');
-    setFormContent(ann.content || '');
-    setFormType(ann.type || 'info');
-    setFormIsActive(ann.isActive === 1 || ann.isActive === true || (ann as any).is_active === 1 || (ann as any).is_active === true);
-    setFormError(null);
-
-    const formatForInput = (str?: string | null) => {
-      if (!str) return '';
-      try {
-        const d = new Date(str);
-        if (isNaN(d.getTime())) return '';
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      } catch {
-        return '';
-      }
-    };
-
-    setFormStartAt(formatForInput(ann.startAt || (ann as any).start_at));
-    setFormEndAt(formatForInput(ann.endAt || (ann as any).end_at));
-    setIsAnnModalOpen(true);
-  };
-
-  const handleAnnFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formTitle.trim()) return;
-
-    setFormSubmitting(true);
-    setFormError(null);
-
-    try {
-      const finalStartAt = formStartAt ? new Date(formStartAt).toISOString() : null;
-      const finalEndAt = formEndAt ? new Date(formEndAt).toISOString() : null;
-
-      if (annModalMode === 'create') {
-        const res = await apiClient.post<{ success: boolean; error?: string }>('/api/admin/announcements', {
-          title: formTitle,
-          content: formContent,
-          type: formType,
-          startAt: finalStartAt,
-          endAt: finalEndAt,
-          isActive: formIsActive
-        });
-        if (res.success) {
-          setIsAnnModalOpen(false);
-          loadAnnouncements();
-        }
-      } else {
-        const res = await apiClient.put<{ success: boolean; error?: string }>(`/api/admin/announcements/${targetAnnId}`, {
-          title: formTitle,
-          content: formContent,
-          type: formType,
-          startAt: finalStartAt,
-          endAt: finalEndAt,
-          isActive: formIsActive
-        });
-        if (res.success) {
-          setIsAnnModalOpen(false);
-          loadAnnouncements();
-        }
-      }
-    } catch (err: any) {
-      setFormError(err.message || '処理に失敗しました。');
-    } finally {
-      setFormSubmitting(false);
-    }
-  };lient.put<{ success: boolean; error?: string }>(`/api/admin/announcements/${editingAnnouncement.id}`, {
-        title: editTitle,
-        content: editContent,
-        type: editType,
-        startAt: finalStartAt,
-        endAt: finalEndAt,
-      });
-
-      if (res.success) {
-        setEditingAnnouncement(null);
-        loadAnnouncements();
-      }
-    } catch (err: any) {
-      alert(err.message || '全体告知メッセージの更新に失敗しました。');
-    } finally {
-      setEditSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('この告知メッセージを削除しますか？')) return;
-    try {
-      await apiClient.delete(`/api/admin/announcements/${id}`);
-      loadAnnouncements();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {errorMsg && (
-        <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Lock size={16} />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* ヘッダーおよび新規告知作成ボタン */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>登録済み全体告知メッセージ一覧</h4>
-        <button 
-          onClick={handleOpenCreateModal}
-          style={{ 
-            padding: '6px 14px', 
-            fontSize: '12px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px',
-            background: 'var(--accent-color)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: 600
-          }}
-        >
-          <Plus size={14} />
-          <span>+ 新規告知を配信</span>
-        </button>
-      </div>
-
-      {/* お知らせ一覧 */}
-      <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
-        {loading ? (
-          <div style={{ padding: '20px', textAlign: 'center' }}><Loader className="animate-spin" size={20} /></div>
-        ) : announcements.length > 0 ? (
-          announcements.map(ann => {
-            const isActive = ann.isActive === 1 || ann.isActive === true || (ann as any).is_active === 1 || (ann as any).is_active === true;
-            const now = new Date().getTime();
-            const startVal = ann.startAt || (ann as any).start_at;
-            const endVal = ann.endAt || (ann as any).end_at;
-            const startTime = startVal ? new Date(startVal).getTime() : null;
-            const endTime = endVal ? new Date(endVal).getTime() : null;
-
-            let statusText = '○ 非公開';
-            let statusColor = '#94a3b8';
-
-            if (isActive) {
-              if (startTime && startTime > now) {
-                statusText = '⏰ 予約中';
-                statusColor = '#fbbf24';
-              } else if (endTime && endTime < now) {
-                statusText = '✖ 期間終了';
-                statusColor = '#f87171';
-              } else {
-                statusText = '● 配信中';
-                statusColor = '#4ade80';
-              }
-            }
-
-            return (
-              <div key={ann.id} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>{ann.title}</span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', color: statusColor }}>
-                      {statusText}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    掲載期間: {startVal ? new Date(startVal).toLocaleString('ja-JP') : '即時'} 〜 {endVal ? new Date(endVal).toLocaleString('ja-JP') : '無期限'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <button onClick={() => handleOpenEditModal(ann)} style={{ padding: '4px 8px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <Edit3 size={12} />
-                    <span>編集</span>
-                  </button>
-                  <button onClick={() => handleDelete(ann.id)} style={{ padding: '4px 8px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <Trash2 size={12} />
-                    <span>削除</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>登録されている全体告知メッセージはありません。</div>
-        )}
-      </div>
-
-      {/* 共通モーダル (新規作成 / 編集) */}
-      {isAnnModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '10px', width: '500px', maxWidth: '90vw', padding: '20px', boxShadow: '0 15px 25px rgba(0, 0, 0, 0.4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {annModalMode === 'create' ? <Globe size={16} color="var(--accent-color)" /> : <Edit3 size={16} color="var(--accent-color)" />}
-                <span>{annModalMode === 'create' ? '新規全体告知作成' : '全体告知メッセージの編集'}</span>
-              </h4>
-              <button onClick={() => setIsAnnModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {formError && (
-              <div style={{ marginBottom: '12px', padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '12px' }}>
-                ⚠️ {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleAnnFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-primary)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    type="checkbox"
-                    checked={formIsActive}
-                    onChange={e => setFormIsActive(e.target.checked)}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>📢 この全体告知を公開する (配信有効)</span>
-                </label>
-                <span style={{ fontSize: '10px', color: formIsActive ? '#4ade80' : 'var(--text-muted)', fontWeight: 'bold' }}>
-                  {formIsActive ? '● 公開中' : '○ 非公開(下書き)'}
-                </span>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: 'var(--text-muted)' }}>告知タイトル *</label>
-                <input
-                  type="text"
-                  placeholder="例: 【重要】サービスメンテナンスのお知らせ"
-                  value={formTitle}
-                  onChange={e => setFormTitle(e.target.value)}
-                  required
-                  className="form-input"
-                  style={{ width: '100%', fontSize: '12px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: 'var(--text-muted)' }}>タイプ</label>
-                <select
-                  value={formType}
-                  onChange={e => setFormType(e.target.value)}
-                  className="form-input"
-                  style={{ width: '100%', fontSize: '12px' }}
-                >
-                  <option value="info">通常</option>
-                  <option value="warning">警告</option>
-                  <option value="critical">緊急</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: 'var(--text-muted)' }}>告知本文 (任意)</label>
-                <textarea
-                  placeholder="詳細メッセージ"
-                  value={formContent}
-                  onChange={e => setFormContent(e.target.value)}
-                  className="form-input"
-                  style={{ width: '100%', fontSize: '12px', height: '60px', resize: 'vertical' }}
-                />
-              </div>
-
-              <div style={{ background: 'var(--bg-primary)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-color)' }}>📅 掲載期間の設定</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>開始日時 (空欄で即時)</label>
-                    <input
-                      type="datetime-local"
-                      value={formStartAt}
-                      onChange={e => setFormStartAt(e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', fontSize: '11px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>終了日時 (空欄で無期限)</label>
-                    <input
-                      type="datetime-local"
-                      value={formEndAt}
-                      onChange={e => setFormEndAt(e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', fontSize: '11px' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsAnnModalOpen(false)}
-                  style={{ padding: '6px 14px', background: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting}
-                  className="submit-btn"
-                  style={{ padding: '6px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                  {formSubmitting ? <Loader className="animate-spin" size={12} /> : annModalMode === 'create' ? <Plus size={14} /> : <Save size={12} />}
-                  <span>{annModalMode === 'create' ? '告知を配信' : '保存する'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
