@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
+import { GlobalAnnouncementBanner } from './GlobalAnnouncementBanner';
 
 const MEDIA_PRESETS = [
   { id: 'image', name: '画像', exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'] },
@@ -1372,6 +1373,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#090d16', color: '#cbd5e1', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+      <GlobalAnnouncementBanner />
       {/* トップヘッダー */}
       <header style={{ height: '64px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0e1320', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
