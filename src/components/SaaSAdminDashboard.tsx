@@ -186,10 +186,28 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminDisplayName, setNewAdminDisplayName] = useState('');
 
-  // 一般状態
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // 操作通知メッセージ（success / error）の5秒自動消去タイマー
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // 環境設定用状態
   const [allowedIps, setAllowedIps] = useState('');
@@ -708,7 +726,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
       const data = await res.json() as any;
       if (res.ok && data.success) {
         setSuccess("ワークスペースの状態を更新しました。");
-        await loadStats();
+        await Promise.all([loadStats(), loadAuditLogs()]);
       } else {
         setError(data.error || "更新に失敗しました。");
       }
@@ -879,7 +897,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
       if (res.ok && data.success) {
         setSuccess(action === 'suspend' ? (isEn ? "User account suspended." : "ユーザーアカウントを一時停止しました。") : (isEn ? "User account activated." : "ユーザーアカウントの利用を再開しました。"));
-        await loadStats();
+        await Promise.all([loadStats(), loadAuditLogs()]);
       } else {
         setError(data.error || "ステータスの更新に失敗しました。");
       }
@@ -1373,7 +1391,110 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#090d16', color: '#cbd5e1', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-      <GlobalAnnouncementBanner />
+      {/* keyframeアニメーションスタイルの注入 */}
+      <style>{`
+        @keyframes toastSlideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes toastProgress {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
+
+      {/* 画面上部中央の共通操作通知トースト (10秒自動消去) */}
+      {(success || error) && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            width: 'min(90vw, 480px)',
+            pointerEvents: 'none'
+          }}
+        >
+          {error && (
+            <div
+              style={{
+                pointerEvents: 'auto',
+                background: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderLeft: '4px solid #ef4444',
+                borderRadius: '12px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+                overflow: 'hidden',
+                position: 'relative',
+                animation: 'toastSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+              }}
+            >
+              <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f87171', fontSize: '13px', fontWeight: 600 }}>
+                  <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{ height: '3px', width: '100%', background: 'rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: '#ef4444', animation: 'toastProgress 5s linear forwards' }} />
+              </div>
+            </div>
+          )}
+
+          {success && (
+            <div
+              style={{
+                pointerEvents: 'auto',
+                background: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(34, 197, 94, 0.4)',
+                borderLeft: '4px solid #22c55e',
+                borderRadius: '12px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+                overflow: 'hidden',
+                position: 'relative',
+                animation: 'toastSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+              }}
+            >
+              <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4ade80', fontSize: '13px', fontWeight: 600 }}>
+                  <Check size={18} style={{ flexShrink: 0 }} />
+                  <span>{success}</span>
+                </div>
+                <button
+                  onClick={() => setSuccess(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{ height: '3px', width: '100%', background: 'rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: '#22c55e', animation: 'toastProgress 5s linear forwards' }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* トップヘッダー */}
       <header style={{ height: '64px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0e1320', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1514,14 +1635,14 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             <span>メール設定</span>
           </button>
 
-          <button onClick={() => setActiveTab('audit_logs')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', background: activeTab === 'audit_logs' ? '#0ea5e9' : 'transparent', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 600, textAlign: 'left', cursor: 'pointer', transition: 'background 0.2s' }}>
-            <FileText size={16} />
-            <span>監査ログ</span>
-          </button>
-
           <button onClick={() => setActiveTab('announcements')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', background: activeTab === 'announcements' ? '#0ea5e9' : 'transparent', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 600, textAlign: 'left', cursor: 'pointer', transition: 'background 0.2s' }}>
             <Globe size={16} />
             <span>全体告知管理</span>
+          </button>
+
+          <button onClick={() => setActiveTab('audit_logs')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', background: activeTab === 'audit_logs' ? '#0ea5e9' : 'transparent', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 600, textAlign: 'left', cursor: 'pointer', transition: 'background 0.2s' }}>
+            <FileText size={16} />
+            <span>監査ログ</span>
           </button>
 
           <button onClick={() => setActiveTab('admins')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', background: activeTab === 'admins' ? '#0ea5e9' : 'transparent', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 600, textAlign: 'left', cursor: 'pointer', transition: 'background 0.2s' }}>
@@ -1532,8 +1653,6 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
         {/* メインコンテンツ表示エリア */}
         <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-          {error && <div style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '16px', borderRadius: '8px', marginBottom: '24px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={16} />{error}</div>}
-          {success && <div style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)', padding: '16px', borderRadius: '8px', marginBottom: '24px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={16} />{success}</div>}
 
           {/* TAB 1: 統計 ＆ アナリティクス */}
           {activeTab === 'stats' && stats && (
@@ -3042,20 +3161,6 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                   </button>
                 </div>
               </div>
-
-              {error && (
-                <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>⚠️ {error}</span>
-                  <button onClick={() => setError(null)} style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-                </div>
-              )}
-
-              {success && (
-                <div style={{ padding: '12px 16px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.3)', color: '#4ade80', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>✅ {success}</span>
-                  <button onClick={() => setSuccess(null)} style={{ background: 'transparent', border: 'none', color: '#4ade80', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-                </div>
-              )}
 
               {/* 過去の告知一覧 */}
               <div style={{ background: 'rgba(30, 41, 59, 0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '24px' }}>
