@@ -886,23 +886,6 @@ export const WorkspaceAnnouncementsTab: React.FC<WorkspaceSaaSAddonProps> = () =
     } finally {
       setFormSubmitting(false);
     }
-  };lient.put<{ success: boolean; error?: string }>(`/api/admin/announcements/${editingAnnouncement.id}`, {
-        title: editTitle,
-        content: editContent,
-        type: editType,
-        startAt: finalStartAt,
-        endAt: finalEndAt,
-      });
-
-      if (res.success) {
-        setEditingAnnouncement(null);
-        loadAnnouncements();
-      }
-    } catch (err: any) {
-      alert(err.message || '全体告知メッセージの更新に失敗しました。');
-    } finally {
-      setEditSubmitting(false);
-    }
   };
 
   const handleDelete = async (id: string) => {
