@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, AlertCircle, ExternalLink, Download, CreditCard, FileText, Megaphone, Plus, Trash2, Calendar, Lock } from 'lucide-react';
+import { Loader, AlertCircle, ExternalLink, Download, CreditCard, FileText, Megaphone, Plus, Trash2, Calendar, Lock, Filter, ChevronDown, ChevronUp, X, Search, Check, Sparkles, Info } from 'lucide-react';
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
 
+// Stripe決済連携機能フラグ（動作検証後に true に変更することで全機能UIが復元されます）
 const ENABLE_STRIPE_FEATURE = false;
 
 interface PublicPlan {
@@ -25,6 +26,8 @@ interface WorkspaceAuditLog {
   action: string;
   details: string;
   ip_address: string;
+  local_ip?: string;
+  computer_name?: string;
   created_at: string;
 }
 
@@ -121,26 +124,41 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
 // -----------------------------------------------------------------------------
 // 2. 自社監査ログタブ 🔒
 // -----------------------------------------------------------------------------
+// 2. 自社監査ログタブ 🔒
+// -----------------------------------------------------------------------------
 export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   workspaceId,
-  workspaceName
+  workspaceName,
+  currentUserRole,
+  subscription,
+  onRefreshSubscription
 }) => {
   const { t } = useLanguage();
   const isEn = t('error') === 'Error';
 
   const [auditLogs, setAuditLogs] = useState<WorkspaceAuditLog[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  
+  // 複合検索条件
   const [auditSearchQuery, setAuditSearchQuery] = useState('');
-  const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [selectedActions, setSelectedActions] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
 
+  // プラン判定 (GitHub スポンサー状態)
+  const isSponsored = subscription?.plan === 'sponsored' || subscription?.isSponsored === true;
+
+  // 監査ログ読み込み
   const loadAuditLogs = async () => {
     setAuditLoading(true);
     try {
-      const res = await apiClient.get<{ success: boolean; logs: WorkspaceAuditLog[] }>(
+      const res = await apiClient.get<{ success: boolean; data: WorkspaceAuditLog[]; logs?: WorkspaceAuditLog[] }>(
         `/api/workspaces/${workspaceId}/audit-logs`
       );
-      if (res.success && Array.isArray(res.logs)) {
-        setAuditLogs(res.logs);
+      const logsData = res.success ? (res.data || res.logs || []) : [];
+      if (Array.isArray(logsData)) {
+        setAuditLogs(logsData);
       }
     } catch (e) {
       console.error("Failed to load workspace audit logs:", e);
@@ -153,21 +171,40 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
     loadAuditLogs();
   }, [workspaceId]);
 
+  // アクションの一覧を動的に抽出
+  const availableActions = Array.from(new Set(auditLogs.map(log => log.action))).filter(Boolean);
+
+  const toggleActionFilter = (action: string) => {
+    setSelectedActions(prev =>
+      prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]
+    );
+  };
+
+  const clearAllFilters = () => {
+    setAuditSearchQuery('');
+    setSelectedActions([]);
+    setStartDate('');
+    setEndDate('');
+  };
+
+  // CSVエクスポート
   const handleExportWorkspaceAuditLogs = () => {
-    if (auditLogs.length === 0) return;
-    const headersLine = ["ID", "User Name", "Action", "Details", "IP Address", "Created At"];
+    if (filteredAuditLogs.length === 0) return;
+    const headersLine = ["ID", "User Name", "Action", "Global IP", "Local IP", "Computer Name", "Details", "Created At"];
     const rows = filteredAuditLogs.map(log => [
       log.id,
       log.userName || "System",
       log.action,
+      log.ip_address || "N/A",
+      log.local_ip || "N/A",
+      log.computer_name || "N/A",
       typeof log.details === 'string' ? log.details.replace(/"/g, '""') : JSON.stringify(log.details),
-      log.ip_address || "",
       log.created_at
     ]);
 
     const csvContent = "\uFEFF" + [
       headersLine.join(","),
-      ...rows.map(e => e.map(val => `"${val}"`).join(","))
+      ...rows.map(row => row.map(val => `"${val}"`).join(","))
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -180,96 +217,507 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
     document.body.removeChild(link);
   };
 
+  // 複合検索フィルタリング
   const filteredAuditLogs = auditLogs.filter(log => {
-    const textMatch = 
-      (log.action?.toLowerCase().includes(auditSearchQuery.toLowerCase())) ||
-      (log.userName?.toLowerCase().includes(auditSearchQuery.toLowerCase()));
+    // 1. テキスト検索（操作名、ユーザー名、グローバルIP、ローカルIP、PC名、詳細情報）
+    const query = auditSearchQuery.trim().toLowerCase();
+    const localIp = (log.local_ip || 'N/A').toLowerCase();
+    const compName = (log.computer_name || 'N/A').toLowerCase();
 
-    const actionMatch = auditActionFilter ? log.action === auditActionFilter : true;
-    return textMatch && actionMatch;
+    const textMatch = !query || (
+      (log.action && log.action.toLowerCase().includes(query)) ||
+      (log.userName && log.userName.toLowerCase().includes(query)) ||
+      (log.ip_address && log.ip_address.toLowerCase().includes(query)) ||
+      localIp.includes(query) ||
+      compName.includes(query) ||
+      (log.details && (typeof log.details === 'string' ? log.details : JSON.stringify(log.details)).toLowerCase().includes(query))
+    );
+
+    // 2. アクション種別のマルチセレクト絞り込み
+    const actionMatch = selectedActions.length === 0 || selectedActions.includes(log.action);
+
+    // 3. 日付指定（From / To、片方のみも可）
+    let dateMatch = true;
+    if (log.created_at) {
+      const logTime = new Date(log.created_at).getTime();
+      if (startDate) {
+        const startMs = new Date(`${startDate}T00:00:00`).getTime();
+        if (logTime < startMs) dateMatch = false;
+      }
+      if (endDate) {
+        const endMs = new Date(`${endDate}T23:59:59.999`).getTime();
+        if (logTime > endMs) dateMatch = false;
+      }
+    }
+
+    return textMatch && actionMatch && dateMatch;
   });
+
+  // 7日以前の日時指定検知（通常版プロモーション表示用）
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const isBefore7DaysSelected = startDate ? new Date(startDate) < sevenDaysAgo : false;
+
+  // アクションバッジのカラー指定
+  const getActionBadgeStyle = (action: string) => {
+    const act = action.toUpperCase();
+    if (act.includes('DELETE') || act.includes('REMOVE') || act.includes('REVOKE') || act.includes('BAN')) {
+      return { bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.3)', color: '#ef4444' };
+    }
+    if (act.includes('CREATE') || act.includes('ADD') || act.includes('INVITE') || act.includes('JOIN')) {
+      return { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.3)', color: '#10b981' };
+    }
+    if (act.includes('UPDATE') || act.includes('EDIT') || act.includes('ROLE') || act.includes('CHANGE')) {
+      return { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.3)', color: '#f59e0b' };
+    }
+    return { bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.3)', color: '#3b82f6' };
+  };
+
+  const hasActiveFilters = Boolean(auditSearchQuery || selectedActions.length > 0 || startDate || endDate);
 
   return (
     <div className="settings-form-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* 🔒 鍵マーク & 7日間制限案内バッジ */}
-      <div style={{
-        padding: '12px 16px',
-        background: 'rgba(59, 130, 246, 0.08)',
-        border: '1px solid rgba(59, 130, 246, 0.2)',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: '13px',
-        color: 'var(--text-primary)'
-      }}>
+      
+      {/* 🔒 案内バッジの動的切り替え */}
+      {isSponsored ? (
+        /* スポンサー版：無制限解除プレミアムバナー */
+        <div style={{
+          padding: '14px 16px',
+          background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(147, 51, 234, 0.1) 100%)',
+          border: '1px solid rgba(217, 119, 6, 0.3)',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          fontSize: '13px',
+          color: 'var(--text-primary)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
+            <div style={{
+              padding: '8px',
+              borderRadius: '8px',
+              background: 'rgba(217, 119, 6, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Sparkles size={18} color="#d97706" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{isEn ? 'GitHub Sponsor Edition: Unlimited History' : 'スポンサー版: 監査ログ制限解除済み'}</span>
+                <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(217, 119, 6, 0.3)', color: '#fbbf24', borderRadius: '4px', fontWeight: 700 }}>PRO</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {isEn
+                  ? 'Thank you for your support! You have unlimited log retention and full history access.'
+                  : 'ご支援ありがとうございます！GitHubスポンサー特典により、監査ログは全期間無制限で保存され検索可能です。'}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* 通常版：7日間制限プロモーション案内バッジ */
+        <div style={{
+          padding: '14px 16px',
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.08) 100%)',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          fontSize: '13px',
+          color: 'var(--text-primary)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
+            <div style={{
+              padding: '8px',
+              borderRadius: '8px',
+              background: 'rgba(59, 130, 246, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Lock size={18} color="#3b82f6" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{isEn ? 'Community Edition: 7-Day Log Retention' : 'コミュニティ版: 直近7日間の監査ログを表示中'}</span>
+                <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', borderRadius: '4px', fontWeight: 700 }}>FREE</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {isEn
+                  ? 'Search history over 7 days & unlimited retention are unlocked via GitHub Sponsor.'
+                  : '7日以上前の過去ログ検索・長期保存は GitHub スポンサー登録で無制限解放されます。'}
+              </div>
+            </div>
+          </div>
+          <a 
+            href="https://github.com/sponsors" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{
+              padding: '8px 14px',
+              background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+              color: '#fff',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontSize: '12px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)',
+              transition: 'transform 0.15s ease'
+            }}
+          >
+            <Sparkles size={14} />
+            <span>{isEn ? 'Unlock Full History' : 'GitHub Sponsor で解放'}</span>
+            <ExternalLink size={12} />
+          </a>
+        </div>
+      )}
+
+      {/* タイトルとCSVエクスポート */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Lock size={16} color="#3b82f6" />
-          <span>
-            {isEn
-              ? 'Community Edition: Audit logs are retained for 7 days. Upgrade via GitHub Sponsor to unlock full history.'
-              : 'コミュニティ版: 監査ログは直近7日間分が表示されます。GitHub スポンサー登録で全期間の過去ログが無制限解放されます。'}
+          <h3 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>{isEn ? 'Workspace Audit Logs' : '自社監査ログ'}</h3>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+            {filteredAuditLogs.length} / {auditLogs.length} {isEn ? 'entries' : '件'}
           </span>
         </div>
-        <a 
-          href="https://github.com/sponsors" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          style={{
-            padding: '6px 12px',
-            background: 'var(--accent-color, #3b82f6)',
-            color: '#fff',
-            borderRadius: '6px',
-            textDecoration: 'none',
-            fontSize: '12px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
+        <button 
+          onClick={handleExportWorkspaceAuditLogs} 
+          disabled={filteredAuditLogs.length === 0} 
+          style={{ 
+            padding: '6px 12px', 
+            background: filteredAuditLogs.length === 0 ? 'rgba(148, 163, 184, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+            border: `1px solid ${filteredAuditLogs.length === 0 ? 'rgba(148, 163, 184, 0.2)' : 'rgba(16, 185, 129, 0.3)'}`, 
+            color: filteredAuditLogs.length === 0 ? 'var(--text-muted)' : '#10b981', 
+            borderRadius: '6px', 
+            fontSize: '12px', 
+            fontWeight: 500,
+            cursor: filteredAuditLogs.length === 0 ? 'not-allowed' : 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px' 
           }}
         >
-          <Lock size={12} />
-          <span>GitHub Sponsor 解放</span>
-          <ExternalLink size={12} />
-        </a>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>自社監査ログ</h3>
-        <button onClick={handleExportWorkspaceAuditLogs} disabled={filteredAuditLogs.length === 0} style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981', borderRadius: '4px', fontSize: '11px', cursor: filteredAuditLogs.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Download size={12} />
-          <span>CSV出力</span>
+          <Download size={14} />
+          <span>{isEn ? 'Export CSV' : 'CSV出力'}</span>
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <input 
-          type="text" 
-          placeholder="ユーザー、アクションで検索..." 
-          value={auditSearchQuery} 
-          onChange={(e) => setAuditSearchQuery(e.target.value)} 
-          className="form-input"
-          style={{ flex: 1, fontSize: '12px' }}
-        />
+      {/* 絞り込みコントロールパネル */}
+      <div style={{
+        padding: '14px',
+        background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
+        border: '1px solid var(--border-light)',
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
+      }}>
+        {/* 行1: フリーワード検索 + アクションマルチセレクト */}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {/* フリーワード検索 */}
+          <div style={{ flex: '1 1 240px', position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              placeholder={isEn ? "Search by user, action, IP, or details..." : "ユーザー、アクション、IP、詳細で検索..."} 
+              value={auditSearchQuery} 
+              onChange={(e) => setAuditSearchQuery(e.target.value)} 
+              className="form-input"
+              style={{ width: '100%', paddingLeft: '30px', fontSize: '12px', height: '36px', marginBottom: 0 }}
+            />
+            {auditSearchQuery && (
+              <X 
+                size={14} 
+                onClick={() => setAuditSearchQuery('')} 
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', cursor: 'pointer' }} 
+              />
+            )}
+          </div>
+
+          {/* アクション種別マルチセレクト */}
+          <div style={{ position: 'relative', minWidth: '200px' }}>
+            <button
+              type="button"
+              onClick={() => setIsActionDropdownOpen(!isActionDropdownOpen)}
+              style={{
+                width: '100%',
+                height: '36px',
+                padding: '0 10px',
+                background: 'var(--bg-primary, #1e293b)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Filter size={14} color="var(--text-muted)" />
+                <span>
+                  {selectedActions.length === 0
+                    ? (isEn ? 'All Actions' : 'すべてのアクション')
+                    : (isEn ? `Selected (${selectedActions.length})` : `選択中 (${selectedActions.length}件)`)}
+                </span>
+              </div>
+              <ChevronDown size={14} color="var(--text-muted)" />
+            </button>
+
+            {/* ドロップダウンメニュー */}
+            {isActionDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '40px',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-primary, #1e293b)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '6px',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+                zIndex: 50,
+                maxHeight: '220px',
+                overflowY: 'auto',
+                padding: '6px'
+              }}>
+                <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-light)', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{isEn ? 'Filter by Action' : 'アクション種別で絞り込み'}</span>
+                  {selectedActions.length > 0 && (
+                    <span onClick={() => setSelectedActions([])} style={{ color: '#3b82f6', cursor: 'pointer' }}>
+                      {isEn ? 'Clear' : '解除'}
+                    </span>
+                  )}
+                </div>
+                {availableActions.length > 0 ? (
+                  availableActions.map(act => {
+                    const isSelected = selectedActions.includes(act);
+                    const badge = getActionBadgeStyle(act);
+                    return (
+                      <div
+                        key={act}
+                        onClick={() => toggleActionFilter(act)}
+                        style={{
+                          padding: '6px 8px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                          fontSize: '12px',
+                          marginBottom: '2px'
+                        }}
+                      >
+                        <span style={{
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          background: badge.bg,
+                          color: badge.color,
+                          border: `1px solid ${badge.border}`
+                        }}>
+                          {act}
+                        </span>
+                        {isSelected && <Check size={14} color="#3b82f6" />}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ padding: '8px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    {isEn ? 'No actions available' : '選択可能なアクションがありません'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 行2: 日時範囲指定（From / To） */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            <Calendar size={14} />
+            <span>{isEn ? 'Date Range:' : '期間指定:'}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 280px' }}>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="form-input"
+              style={{ fontSize: '12px', height: '34px', padding: '0 8px', flex: 1, marginBottom: 0 }}
+              title={isEn ? "Start Date (From)" : "開始日（〜から）"}
+            />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>〜</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="form-input"
+              style={{ fontSize: '12px', height: '34px', padding: '0 8px', flex: 1, marginBottom: 0 }}
+              title={isEn ? "End Date (To)" : "終了日（〜まで）"}
+            />
+          </div>
+
+          {/* フィルターリセットボタン */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              style={{
+                padding: '6px 10px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: '#ef4444',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <X size={12} />
+              <span>{isEn ? 'Reset Filters' : '絞り込み解除'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* 選択されたアクションのチップ表示 */}
+        {selectedActions.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '4px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{isEn ? 'Actions:' : '選択中のアクション:'}</span>
+            {selectedActions.map(act => (
+              <span
+                key={act}
+                onClick={() => toggleActionFilter(act)}
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: '#3b82f6',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                {act}
+                <X size={10} />
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 💡 7日以前の日付選択時のインライン誘導バナー */}
+        {!isSponsored && isBefore7DaysSelected && (
+          <div style={{
+            padding: '8px 12px',
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: '6px',
+            fontSize: '12px',
+            color: '#d97706',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <Info size={14} />
+            <span>
+              {isEn
+                ? 'Note: History search beyond 7 days requires a GitHub Sponsor subscription.'
+                : '注意: 7日以上前の過去ログを表示するには GitHub スポンサー登録が必要です。'}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
-        {auditLoading ? (
-          <div style={{ padding: '20px', textAlign: 'center' }}><Loader className="animate-spin" size={20} /></div>
-        ) : filteredAuditLogs.length > 0 ? (
-          filteredAuditLogs.map(log => (
-            <div key={log.id} style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-light)', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--accent-color, #3b82f6)' }}>{log.action}</span>
-                <span style={{ color: 'var(--text-muted)' }}>{log.created_at ? new Date(log.created_at).toLocaleString() : ''}</span>
-              </div>
-              <div style={{ color: 'var(--text-secondary)' }}>{log.userName || 'System'} ({log.ip_address || 'IP N/A'})</div>
-            </div>
-          ))
-        ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>ログがありません。</div>
-        )}
+      {/* 監査ログ一覧テーブル */}
+      <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg-primary)' }}>
+        <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-secondary, rgba(255,255,255,0.02))', borderBottom: '1px solid var(--border-light)', color: 'var(--text-muted)' }}>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Date' : '日時'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'User' : 'ユーザー'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Action' : 'アクション'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Global IP' : 'グローバルIP'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Local IP' : 'ローカルIP'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Computer Name' : 'コンピュータ名'}</th>
+                <th style={{ padding: '10px 12px' }}>{isEn ? 'Details' : '詳細'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLoading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Loader className="animate-spin" size={16} />
+                      <span>{isEn ? 'Loading logs...' : 'ログを読み込み中...'}</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredAuditLogs.length > 0 ? (
+                filteredAuditLogs.map(log => {
+                  const badge = getActionBadgeStyle(log.action);
+                  return (
+                    <tr key={log.id} style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-primary)', transition: 'background-color 0.15s ease' }}>
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>{new Date(log.created_at).toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{log.userName || 'SYSTEM'}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          background: badge.bg,
+                          color: badge.color,
+                          border: `1px solid ${badge.border}`
+                        }}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{log.ip_address || '-'}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{log.local_ip || '-'}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{log.computer_name || '-'}</td>
+                      <td 
+                        style={{ padding: '10px 12px', color: 'var(--text-muted)', fontFamily: 'monospace', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} 
+                        title={log.details}
+                      >
+                        {log.details}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    {isEn ? 'No logs found matching filters.' : '条件に合致する監査ログはありません。'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

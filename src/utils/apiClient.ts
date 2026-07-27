@@ -1,3 +1,93 @@
+let cachedLocalIp: string | null = null;
+let cachedComputerName: string | null = null;
+
+export async function getLocalIp(): Promise<string> {
+  if (cachedLocalIp) return cachedLocalIp;
+  return new Promise((resolve) => {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      pc.createOffer().then(offer => pc.setLocalDescription(offer));
+      
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cachedLocalIp = "192.168.1.100";
+          resolve(cachedLocalIp);
+        }
+      }, 500);
+
+      pc.onicecandidate = (ice) => {
+        if (!ice || !ice.candidate || !ice.candidate.candidate) {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeout);
+            cachedLocalIp = "192.168.1.100";
+            resolve(cachedLocalIp);
+          }
+          return;
+        }
+        const candidate = ice.candidate.candidate;
+        const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})|([a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})|([a-zA-Z0-9-]+\.local)/;
+        const match = ipRegex.exec(candidate);
+        if (match) {
+          resolved = true;
+          clearTimeout(timeout);
+          cachedLocalIp = match[0];
+          resolve(cachedLocalIp);
+          pc.close();
+        }
+      };
+    } catch (e) {
+      cachedLocalIp = "192.168.1.100";
+      resolve(cachedLocalIp);
+    }
+  });
+}
+
+export function getComputerName(): string {
+  if (cachedComputerName) return cachedComputerName;
+  if (typeof localStorage !== "undefined") {
+    const saved = localStorage.getItem("cohive_device_name");
+    if (saved) {
+      cachedComputerName = saved;
+      return saved;
+    }
+  }
+
+  if (typeof window === "undefined") {
+    return "Server-Side";
+  }
+
+  const ua = navigator.userAgent;
+  let os = "UnknownOS";
+  if (ua.indexOf("Win") !== -1) os = "Windows";
+  else if (ua.indexOf("Mac") !== -1) os = "macOS";
+  else if (ua.indexOf("Linux") !== -1) os = "Linux";
+  else if (ua.indexOf("Android") !== -1) os = "Android";
+  else if (ua.indexOf("like Mac") !== -1) os = "iOS";
+
+  let browser = "Browser";
+  if (ua.indexOf("Chrome") !== -1) browser = "Chrome";
+  else if (ua.indexOf("Firefox") !== -1) browser = "Firefox";
+  else if (ua.indexOf("Safari") !== -1) browser = "Safari";
+  else if (ua.indexOf("Edge") !== -1) browser = "Edge";
+
+  const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+  cachedComputerName = `${os}-${browser}-${randomId}`;
+  
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem("cohive_device_name", cachedComputerName);
+  }
+  return cachedComputerName;
+}
+
+// 初期実行でキャッシュを開始
+if (typeof window !== "undefined") {
+  getLocalIp();
+}
+
 export interface RequestOptions extends RequestInit {
   /** クエリパラメータとして付与するキーバリュー */
   params?: Record<string, string>;
@@ -165,6 +255,16 @@ export class ApiClient {
     const token = this.getToken();
     if (token && !requestHeaders.has("Authorization")) {
       requestHeaders.set("Authorization", `Bearer ${token}`);
+    }
+
+    // ローカルIPとコンピュータ名を設定
+    const localIp = typeof window !== "undefined" ? (cachedLocalIp || "192.168.1.100") : "";
+    const compName = typeof window !== "undefined" ? getComputerName() : "";
+    if (localIp) {
+      requestHeaders.set("X-Local-Ip", localIp);
+    }
+    if (compName) {
+      requestHeaders.set("X-Computer-Name", compName);
     }
 
     const config: RequestInit = {
