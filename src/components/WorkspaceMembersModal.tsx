@@ -222,14 +222,20 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({
       setCustomStatuses(statuses);
       loadMembers();
       loadGroups();
+      if (fetchSubscription) {
+        fetchSubscription(workspace.id);
+      }
     }
-  }, [isOpen, isEmbed, workspace]);
+  }, [isOpen, isEmbed, workspace, fetchSubscription]);
 
   useEffect(() => {
     if (activeTab === 'members' && (isOpen || isEmbed) && workspace) {
       loadMembers();
     }
-  }, [activeTab, isOpen, isEmbed, workspace]);
+    if (activeTab === 'subscription' && (isOpen || isEmbed) && workspace && fetchSubscription) {
+      fetchSubscription(workspace.id);
+    }
+  }, [activeTab, isOpen, isEmbed, workspace, fetchSubscription]);
 
   if (!isEmbed && (!isOpen || !workspace)) return null;
   if (isEmbed && !workspace) return null;
