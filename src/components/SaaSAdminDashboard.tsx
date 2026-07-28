@@ -133,13 +133,98 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   onAdminSetupComplete,
   onLogoutAdmin,
 }) => {
-  const { t } = useLanguage();
-  const isEn = t('error') === 'Error';
+  const { language, setLanguage, t } = useLanguage();
+  const isEn = language === 'en';
 
   // 認証と初期化状態
   const [token, setToken] = useState<string | null>(localStorage.getItem('cohive_admin_token'));
   const [adminUser, setAdminUser] = useState<any | null>(null);
   const [isInitialized, setIsInitialized] = useState(!adminSetupRequired);
+
+  // ログイン前のデフォルト言語を 'en' に設定（ローカルストレージ未設定時）
+  useEffect(() => {
+    if (!token && !localStorage.getItem('cohive_language')) {
+      setLanguage('en');
+    }
+  }, [token]);
+
+  const handleLanguageChange = async (newLang: 'ja' | 'en') => {
+    setLanguage(newLang);
+    if (token) {
+      try {
+        await fetch('/api/admin/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ language: newLang })
+        });
+      } catch (err) {
+        console.error("Failed to save admin language setting:", err);
+      }
+    }
+  };
+
+  const fetchMe = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as any;
+        if (data.success && data.admin) {
+          setAdminUser(data.admin);
+          if (data.admin.language === 'ja' || data.admin.language === 'en') {
+            setLanguage(data.admin.language);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch admin info:", e);
+    }
+  };
+
+  const LanguageSwitcher = () => (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15, 23, 42, 0.8)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <Globe size={14} style={{ color: '#94a3b8' }} />
+      <button
+        type="button"
+        onClick={() => handleLanguageChange('en')}
+        style={{
+          background: isEn ? '#0ea5e9' : 'transparent',
+          color: isEn ? '#fff' : '#94a3b8',
+          border: 'none',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 0.2s'
+        }}
+      >
+        EN
+      </button>
+      <button
+        type="button"
+        onClick={() => handleLanguageChange('ja')}
+        style={{
+          background: !isEn ? '#0ea5e9' : 'transparent',
+          color: !isEn ? '#fff' : '#94a3b8',
+          border: 'none',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 0.2s'
+        }}
+      >
+        JA
+      </button>
+    </div>
+  );
   
   // ログインフォーム状態
   const [email, setEmail] = useState('');
@@ -230,7 +315,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   const [smtpPort, setSmtpPort] = useState('465');
   const [smtpUser, setSmtpUser] = useState('');
   const [smtpPass, setSmtpPass] = useState('');
-  const [smtpFromName, setSmtpFromName] = useState('CoHive Enterprise');
+  const [smtpFromName, setSmtpFromName] = useState('CoHive Admin');
   const [smtpMfaEnabled, setSmtpMfaEnabled] = useState(false);
   const [smtpTestRecipient, setSmtpTestRecipient] = useState('');
 
@@ -621,15 +706,15 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
       const res = await fetch('/api/admin/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, displayName })
+        body: JSON.stringify({ email, password, displayName, language })
       });
       const data = await res.json() as any;
       if (res.ok && data.success) {
         setIsInitialized(true);
-        setSuccess("初期管理者の登録が完了しました。ログインしてください。");
+        setSuccess(isEn ? "Initial admin registered. Please log in." : "初期管理者の登録が完了しました。ログインしてください。");
         setPassword('');
       } else {
-        setError(data.error || "セットアップに失敗しました。");
+        setError(data.error || (isEn ? "Setup failed." : "セットアップに失敗しました。"));
       }
     } catch (err: any) {
       setError(err.message || "通信エラーが発生しました。");
@@ -658,7 +743,8 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
           localStorage.setItem('cohive_admin_token', data.token);
           setToken(data.token);
           setAdminUser(data.admin);
-          setSuccess("ログインしました。");
+          if (data.admin?.language) setLanguage(data.admin.language);
+          setSuccess(isEn ? "Logged in successfully." : "ログインしました。");
         }
       } else {
         setError(data.error || "ログインに失敗しました。");
@@ -687,9 +773,10 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         localStorage.setItem('cohive_admin_token', data.token);
         setToken(data.token);
         setAdminUser(data.admin);
+        if (data.admin?.language) setLanguage(data.admin.language);
         setTempSessionId(null);
         setMfaCode('');
-        setSuccess("ログインしました。");
+        setSuccess(isEn ? "Logged in successfully." : "ログインしました。");
       } else {
         setError(data.error || "認証コードが正しくありません。");
       }
@@ -1000,7 +1087,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         setSmtpPort('465');
         setSmtpUser('');
         setSmtpPass('');
-        setSmtpFromName('CoHive Enterprise');
+        setSmtpFromName('CoHive Admin');
         setSmtpMfaEnabled(false);
       } else {
         setError(data.error || "SMTP設定のクリアに失敗しました。");
@@ -1301,33 +1388,36 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   if (token === null) {
     if (!isInitialized) {
       return (
-        <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#fff', padding: '20px' }}>
+        <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#fff', padding: '20px', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+            <LanguageSwitcher />
+          </div>
           <div className="setup-card" style={{ background: '#1e293b', padding: '32px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', width: '100%', maxWidth: '480px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', justifyContent: 'center' }}>
               <Shield size={32} style={{ color: '#0ea5e9' }} />
-              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>CoHive Enterprise Setup</h2>
+              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>CoHive Admin Setup</h2>
             </div>
             <p style={{ color: '#94a3b8', textAlign: 'center', marginBottom: '24px', fontSize: '14px' }}>
-              {isEn ? "Initialize the first Enterprise platform owner account." : "最初のプラットフォーム運営管理者アカウントを登録します。"}
+              {isEn ? "Initialize the first platform owner account." : "最初のプラットフォーム運営管理者アカウントを登録します。"}
             </p>
 
             {error && <div style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
 
             <form onSubmit={handleSetupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>表示名</label>
-                <input type="text" placeholder="管理者A" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} />
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Display Name" : "表示名"}</label>
+                <input type="text" placeholder={isEn ? "Admin A" : "管理者A"} value={displayName} onChange={(e) => setDisplayName(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>メールアドレス</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Email Address" : "メールアドレス"}</label>
                 <input type="email" placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>初期パスワード</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Initial Password" : "初期パスワード"}</label>
                 <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} />
               </div>
               <button type="submit" disabled={loading} style={{ background: '#0ea5e9', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', fontWeight: 600, cursor: 'pointer', marginTop: '10px' }}>
-                {loading ? "登録中..." : "最初の管理者を登録"}
+                {loading ? (isEn ? "Registering..." : "登録中...") : (isEn ? "Register First Admin" : "最初の管理者を登録")}
               </button>
             </form>
           </div>
@@ -1336,11 +1426,14 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     }
 
     return (
-      <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#fff', padding: '20px' }}>
+      <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#fff', padding: '20px', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+          <LanguageSwitcher />
+        </div>
         <div className="setup-card" style={{ background: '#1e293b', padding: '32px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', width: '100%', maxWidth: '440px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', justifyContent: 'center' }}>
             <Shield size={32} style={{ color: '#0ea5e9' }} />
-            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>CoHive Enterprise Admin</h2>
+            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>CoHive Admin</h2>
           </div>
 
           {error && <div style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
@@ -1350,27 +1443,27 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             <form onSubmit={handleMfaSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px', lineHeight: '1.5' }}>
-                  管理者ログイン用の確認コード（MFA）をメールで送信しました。コードを入力してログインを完了してください。
+                  {isEn ? "Verification code (MFA) has been sent to your email. Enter the code below to complete login." : "管理者ログイン用の確認コード（MFA）をメールで送信しました。コードを入力してログインを完了してください。"}
                 </p>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>認証コード</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Verification Code" : "認証コード"}</label>
                 <input type="text" maxLength={6} placeholder="123456" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))} required style={{ width: '100%', padding: '12px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '20px', fontWeight: 'bold', letterSpacing: '8px', textAlign: 'center' }} disabled={loading} />
               </div>
               <button type="submit" style={{ background: '#0ea5e9', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', fontWeight: 600, cursor: 'pointer' }} disabled={loading || mfaCode.length !== 6}>
-                {loading ? "認証中..." : "ログインを確定"}
+                {loading ? (isEn ? "Verifying..." : "認証中...") : (isEn ? "Confirm Login" : "ログインを確定")}
               </button>
             </form>
           ) : (
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>メールアドレス</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Email Address" : "メールアドレス"}</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} disabled={loading} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>パスワード</label>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>{isEn ? "Password" : "パスワード"}</label>
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} disabled={loading} />
               </div>
               <button type="submit" style={{ background: '#0ea5e9', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', fontWeight: 600, cursor: 'pointer', marginTop: '10px' }} disabled={loading}>
-                {loading ? "ログイン中..." : "ログイン"}
+                {loading ? (isEn ? "Logging in..." : "ログイン中...") : (isEn ? "Log In" : "ログイン")}
               </button>
             </form>
           )}
@@ -1502,12 +1595,13 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             <Shield size={20} />
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px' }}>CoHive Enterprise Portal</h1>
-            <span style={{ fontSize: '11px', color: '#64748b' }}>エンタープライズ総合統括パネル</span>
+            <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px' }}>CoHive Admin Portal</h1>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>{isEn ? "Platform Management Panel" : "プラットフォーム総合管理パネル"}</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+          <LanguageSwitcher />
           <div 
             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
             style={{ 
@@ -1526,7 +1620,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
               {(adminUser?.displayName || adminUser?.display_name || 'A').slice(0, 1).toUpperCase()}
             </div>
             <div style={{ fontSize: '13px', textAlign: 'left' }}>
-              <div style={{ fontSize: '10px', color: '#64748b', lineHeight: 1 }}>{adminUser?.role === 'owner' ? 'オーナー' : '管理者'}</div>
+              <div style={{ fontSize: '10px', color: '#64748b', lineHeight: 1 }}>{adminUser?.role === 'owner' ? (isEn ? 'Owner' : 'オーナー') : (isEn ? 'Admin' : '管理者')}</div>
               <strong style={{ color: '#cbd5e1' }}>{adminUser?.displayName || adminUser?.display_name}</strong>
             </div>
           </div>
@@ -2007,7 +2101,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Enterprise プラン設定</h2>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>プラットフォーム プラン設定</h2>
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>テナントに割り当てるプランの制限値や課金価格を調整します。</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -2553,7 +2647,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
 
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>送信者名 (From Display Name)</label>
-                    <input type="text" value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} placeholder="CoHive Enterprise" required style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                    <input type="text" value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} placeholder="CoHive Admin" required style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContext: 'space-between', background: 'rgba(0,0,0,0.1)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
