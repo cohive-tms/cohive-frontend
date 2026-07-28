@@ -166,25 +166,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
     }
   };
 
-  const fetchMe = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/admin/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json() as any;
-        if (data.success && data.admin) {
-          setAdminUser(data.admin);
-          if (data.admin.language === 'ja' || data.admin.language === 'en') {
-            setLanguage(data.admin.language);
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch admin info:", e);
-    }
-  };
+
 
   const LanguageSwitcher = () => (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15, 23, 42, 0.8)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -538,6 +520,9 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
         const data = await res.json() as any;
         if (data.success) {
           setAdminUser(data.admin);
+          if (data.admin && (data.admin.language === 'ja' || data.admin.language === 'en')) {
+            setLanguage(data.admin.language);
+          }
           if (data.settings) {
             setAllowedIps(data.settings.allowedIps || '');
             setCustomPath(data.settings.customPath || currentPath);
