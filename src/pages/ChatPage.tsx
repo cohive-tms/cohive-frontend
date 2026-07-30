@@ -1203,7 +1203,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
               const limit = saas.checkWorkspaceLimit(workspaces.length);
               if (limit?.limitReached) {
                 setLimitModalType('workspace');
-                setLimitModalValue(3);
+                setLimitModalValue(limit.limitValue || 3);
                 setLimitModalOpen(true);
                 return;
               }

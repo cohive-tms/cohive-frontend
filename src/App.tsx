@@ -18,7 +18,7 @@ export interface SaasExtensions {
   renderAdminDashboard?: (currentPath: string, adminSetupRequired: boolean, onSetupComplete: () => void) => React.ReactNode;
   renderPreparingScreen?: () => React.ReactNode;
   renderSuspendedScreen?: (onLogout: () => void) => React.ReactNode;
-  checkWorkspaceLimit?: (workspaceCount: number) => { limitReached: boolean; message: string } | null;
+  checkWorkspaceLimit?: (workspaceCount: number) => { limitReached: boolean; message: string; limitValue?: number } | null;
   saasLimitModal?: React.ComponentType<{
     isOpen: boolean;
     onClose: () => void;
