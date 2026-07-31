@@ -618,6 +618,7 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
             ))}
           </div>
         )}
+      </div>
 
         {/* 監査ログ一覧テーブル */}
       <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg-primary)' }}>
