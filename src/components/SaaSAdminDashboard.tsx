@@ -2674,107 +2674,6 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
           {activeTab === 'audit_logs' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              {/* 🔒 案内バッジの動的切り替え */}
-              {isSponsored ? (
-                /* スポンサー版：無制限解除プレミアムバナー */
-                <div style={{
-                  padding: '14px 16px',
-                  background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(147, 51, 234, 0.1) 100%)',
-                  border: '1px solid rgba(217, 119, 6, 0.3)',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                  fontSize: '13px',
-                  color: '#f8fafc'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
-                    <div style={{
-                      padding: '8px',
-                      borderRadius: '8px',
-                      background: 'rgba(217, 119, 6, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Sparkles size={18} color="#d97706" />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>スポンサー版: 全社監査ログ制限解除済み</span>
-                        <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(217, 119, 6, 0.3)', color: '#fbbf24', borderRadius: '4px', fontWeight: 700 }}>PRO</span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        ご支援ありがとうございます！GitHubスポンサー特典により、全社監査ログは全期間無制限で保存され検索可能です。
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* 通常版：7日間制限プロモーション案内バッジ */
-                <div style={{
-                  padding: '14px 16px',
-                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.08) 100%)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                  fontSize: '13px',
-                  color: '#f8fafc'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
-                    <div style={{
-                      padding: '8px',
-                      borderRadius: '8px',
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Lock size={18} color="#3b82f6" />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>コミュニティ版: 直近7日間の全社監査ログを表示中</span>
-                        <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', borderRadius: '4px', fontWeight: 700 }}>FREE</span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        7日以上前の過去ログ検索・長期保存は GitHub スポンサー登録で無制限解放されます。
-                      </div>
-                    </div>
-                  </div>
-                  <a 
-                    href="https://github.com/sponsors" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{
-                      padding: '8px 14px',
-                      background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-                      color: '#fff',
-                      borderRadius: '6px',
-                      textDecoration: 'none',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)',
-                      transition: 'transform 0.15s ease'
-                    }}
-                  >
-                    <Sparkles size={14} />
-                    <span>GitHub Sponsor で解放</span>
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-              )}
-
               {/* タイトルとCSV・更新ボタン */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3040,25 +2939,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                 </div>
               )}
 
-              {/* 💡 7日以前の日付選択時のインライン誘導バナー */}
-              {!isSponsored && isBefore7DaysSelected && (
-                <div style={{
-                  padding: '8px 12px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  color: '#fbbf24',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <Info size={14} style={{ flexShrink: 0 }} />
-                  <span>
-                    コミュニティ版の保持期間（7日間）を超える開始日が指定されています。7日以上前の全過去ログ表示には GitHub スポンサー登録が必要です。
-                  </span>
-                </div>
-              )}
+
 
               {/* 監査ログ一覧テーブル (アコーディオン詳細展開対応) */}
               <div style={{ border: '1px solid #1e293b', borderRadius: '12px', overflow: 'hidden', background: '#0f172a', padding: '16px' }}>

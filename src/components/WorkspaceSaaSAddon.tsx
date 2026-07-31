@@ -449,111 +449,6 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
   return (
     <div className="settings-form-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       
-      {/* 🔒 案内バッジの動的切り替え */}
-      {isSponsored ? (
-        /* スポンサー版：無制限解除プレミアムバナー */
-        <div style={{
-          padding: '14px 16px',
-          background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(147, 51, 234, 0.1) 100%)',
-          border: '1px solid rgba(217, 119, 6, 0.3)',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          fontSize: '13px',
-          color: 'var(--text-primary)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
-            <div style={{
-              padding: '8px',
-              borderRadius: '8px',
-              background: 'rgba(217, 119, 6, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Sparkles size={18} color="#d97706" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>{isEn ? 'GitHub Sponsor Edition: Unlimited History' : 'スポンサー版: 監査ログ制限解除済み'}</span>
-                <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(217, 119, 6, 0.3)', color: '#fbbf24', borderRadius: '4px', fontWeight: 700 }}>PRO</span>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {isEn
-                  ? 'Thank you for your support! You have unlimited log retention and full history access.'
-                  : 'ご支援ありがとうございます！GitHubスポンサー特典により、監査ログは全期間無制限で保存され検索可能です。'}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* 通常版：7日間制限プロモーション案内バッジ */
-        <div style={{
-          padding: '14px 16px',
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.08) 100%)',
-          border: '1px solid rgba(59, 130, 246, 0.25)',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          fontSize: '13px',
-          color: 'var(--text-primary)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px' }}>
-            <div style={{
-              padding: '8px',
-              borderRadius: '8px',
-              background: 'rgba(59, 130, 246, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Lock size={18} color="#3b82f6" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>{isEn ? 'Community Edition: 7-Day Log Retention' : 'コミュニティ版: 直近7日間の監査ログを表示中'}</span>
-                <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', borderRadius: '4px', fontWeight: 700 }}>FREE</span>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {isEn
-                  ? 'Search history over 7 days & unlimited retention are unlocked via GitHub Sponsor.'
-                  : '7日以上前の過去ログ検索・長期保存は GitHub スポンサー登録で無制限解放されます。'}
-              </div>
-            </div>
-          </div>
-          <a 
-            href="https://github.com/sponsors" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            style={{
-              padding: '8px 14px',
-              background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-              color: '#fff',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontSize: '12px',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.25)',
-              transition: 'transform 0.15s ease'
-            }}
-          >
-            <Sparkles size={14} />
-            <span>{isEn ? 'Unlock Full History' : 'GitHub Sponsor で解放'}</span>
-            <ExternalLink size={12} />
-          </a>
-        </div>
-      )}
-
       {/* タイトルとCSVエクスポート */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -797,30 +692,7 @@ export const WorkspaceAuditLogsTab: React.FC<WorkspaceSaaSAddonProps> = ({
           </div>
         )}
 
-        {/* 💡 7日以前の日付選択時のインライン誘導バナー */}
-        {!isSponsored && isBefore7DaysSelected && (
-          <div style={{
-            padding: '8px 12px',
-            background: 'rgba(245, 158, 11, 0.1)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-            borderRadius: '6px',
-            fontSize: '12px',
-            color: '#d97706',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <Info size={14} />
-            <span>
-              {isEn
-                ? 'Note: History search beyond 7 days requires a GitHub Sponsor subscription.'
-                : '注意: 7日以上前の過去ログを表示するには GitHub スポンサー登録が必要です。'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* 監査ログ一覧テーブル */}
+        {/* 監査ログ一覧テーブル */}
       <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg-primary)' }}>
         <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>

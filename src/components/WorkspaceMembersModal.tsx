@@ -523,7 +523,7 @@ export const WorkspaceMembersModal: React.FC<WorkspaceMembersModalProps> = ({
                   >
                     <option value="member">{t('workspace.role.member')}</option>
                     <option value="guest">{t('workspace.role.guest')}</option>
-                    <option value="owner">{t('workspace.role.owner')} 🔒 (GitHub Sponsor)</option>
+                    <option value="owner">{t('workspace.role.owner')}</option>
                   </select>
                 </div>
                 <div className="form-group" style={{ flex: 1.5, marginBottom: 0 }}>
