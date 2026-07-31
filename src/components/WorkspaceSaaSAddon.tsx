@@ -3,8 +3,7 @@ import { Loader, AlertCircle, ExternalLink, Download, CreditCard, FileText, Mega
 import { apiClient } from '../utils/apiClient';
 import { useLanguage } from '../utils/i18n';
 
-// Stripe決済連携機能フラグ（動作検証後に true に変更することで全機能UIが復元されます）
-const ENABLE_STRIPE_FEATURE = false;
+
 
 interface PublicPlan {
   id: string;
@@ -44,9 +43,6 @@ interface SubscriptionData {
   allowedExtensions?: string;
   msgRetentionDays?: number;
   msgRetentionCount?: number;
-  stripeEnabled?: boolean;
-  stripePublishableKey?: string;
-  stripeSubscriptionId?: string;
   status?: string;
 }
 
@@ -101,40 +97,7 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
 
   const isSuspended = subscription.status === 'suspended';
 
-  // Stripe Checkout
-  const handleUpgrade = async (planId: string) => {
-    setBillingLoading(true);
-    try {
-      const res = await apiClient.post<{ success: boolean; url: string }>(
-        `/api/workspaces/${workspaceId}/billing/checkout`,
-        { planId }
-      );
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      }
-    } catch (err: any) {
-      alert(err.message || "決済画面の起動に失敗しました。");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
 
-  // Stripe Portal
-  const handleOpenStripePortal = async () => {
-    setBillingLoading(true);
-    try {
-      const res = await apiClient.post<{ success: boolean; url: string }>(
-        `/api/workspaces/${workspaceId}/billing/portal`
-      );
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      }
-    } catch (err: any) {
-      alert(err.message || "ポータル画面の起動に失敗しました。");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
 
   // 容量フォーマット
   const formatSize = (bytes: number) => {
@@ -167,11 +130,6 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
         <div>
           {billingLoading ? (
             <Loader className="animate-spin" size={20} />
-          ) : subscription.stripeSubscriptionId ? (
-            <button onClick={handleOpenStripePortal} className="submit-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px', cursor: 'pointer' }}>
-              <ExternalLink size={14} />
-              <span>サブスクリプションを管理 (ポータル)</span>
-            </button>
           ) : isOwner ? (
             <button 
               onClick={() => {
@@ -252,37 +210,6 @@ export const WorkspaceSubscriptionTab: React.FC<WorkspaceSaaSAddonProps> = ({
           </span>
         </div>
       </div>
-
-      {/* プラン変更テーブル */}
-      {subscription.stripeEnabled && ENABLE_STRIPE_FEATURE && isOwner && !subscription.stripeSubscriptionId && publicPlans.length > 0 && (
-        <div style={{ marginTop: '12px' }}>
-          <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 'bold' }}>プランをアップグレード / 変更</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {publicPlans.map(plan => (
-              <div key={plan.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
-                <div>
-                  <strong style={{ fontSize: '13px' }}>{plan.name}</strong>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    メンバー: {plan.member_limit >= 9999 ? '無制限' : `${plan.member_limit}名`} | 
-                    ストレージ: {plan.storage_limit >= 9999999999 ? '無制限' : formatSize(plan.storage_limit)} | 
-                    保存日数: {(plan.msg_retention_days ?? 0) === 0 ? '無制限' : `${plan.msg_retention_days}日`}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{plan.price_amount > 0 ? `${plan.price_amount.toLocaleString()} ${plan.price_currency.toUpperCase()}/月` : '無料'}</span>
-                  {plan.id !== subscription.plan ? (
-                    <button onClick={() => handleUpgrade(plan.id)} disabled={billingLoading} className="submit-btn" style={{ padding: '6px 12px', fontSize: '11px', cursor: 'pointer' }}>
-                      契約する
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>契約中</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

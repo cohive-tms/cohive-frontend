@@ -16,8 +16,7 @@ const MEDIA_PRESETS = [
   { id: 'archive', name: '圧縮ファイル', exts: ['zip', '7z', 'rar', 'tar', 'gz'] },
 ];
 
-// Stripe決済連携機能フラグ（動作検証後に true に変更することで全機能UIが復元されます）
-const ENABLE_STRIPE_FEATURE = false;
+
 
 // UTC日時文字列を閲覧者のブラウザ環境（ローカルタイムゾーン）に合わせた形式に自動変換するヘルパー関数
 const formatLocalDateTime = (dateStr: string | null | undefined, includeTime: boolean = true): string => {
@@ -280,10 +279,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
   const [allowedIps, setAllowedIps] = useState('');
   const [customPath, setCustomPath] = useState(currentPath);
   const [defaultSaasPlan, setDefaultSaasPlan] = useState('free');
-  const [stripeEnabled, setStripeEnabled] = useState(false);
-  const [stripeSecretKey, setStripeSecretKey] = useState('');
-  const [stripePublishableKey, setStripePublishableKey] = useState('');
-  const [stripeWebhookSecret, setStripeWebhookSecret] = useState('');
+
 
   // ヘッダープロフィールメニューと編集対象管理者アカウント状態
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -527,12 +523,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             setAllowedIps(data.settings.allowedIps || '');
             setCustomPath(data.settings.customPath || currentPath);
             setDefaultSaasPlan(data.settings.defaultSaasPlan || 'free');
-            setStripeEnabled(data.settings.stripeEnabled || false);
-            if (data.settings.stripeSettings) {
-              setStripeSecretKey(data.settings.stripeSettings.secretKey ? '********' : '');
-              setStripePublishableKey(data.settings.stripeSettings.publishableKey || '');
-              setStripeWebhookSecret(data.settings.stripeSettings.webhookSecret ? '********' : '');
-            }
+
           }
           if (data.clientIp) {
             setClientIp(data.clientIp);
@@ -921,10 +912,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
           allowedIps,
           customPath,
           defaultSaasPlan,
-          stripeEnabled,
-          stripeSecretKey: stripeSecretKey === '********' ? undefined : stripeSecretKey,
-          stripePublishableKey,
-          stripeWebhookSecret: stripeWebhookSecret === '********' ? undefined : stripeWebhookSecret
+          defaultSaasPlan
         })
       });
       const data = await res.json() as any;
@@ -2387,28 +2375,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                       </label>
                     </div>
 
-                    {ENABLE_STRIPE_FEATURE && (
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', gridColumn: 'span 2', paddingTop: '16px', marginTop: '10px' }}>
-                        <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0ea5e9' }}>Stripe決済情報 (課金機能有効時)</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>Stripe Price ID</label>
-                            <input type="text" placeholder="price_1H..." value={currentFormPlan.price_id || ''} onChange={(e) => setFormPlan({...currentFormPlan, price_id: e.target.value})} style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>価格 (月額)</label>
-                            <input type="number" value={currentFormPlan.price_amount ?? 0} onChange={(e) => setFormPlan({...currentFormPlan, price_amount: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>通貨</label>
-                            <select value={currentFormPlan.price_currency || 'jpy'} onChange={(e) => setFormPlan({...currentFormPlan, price_currency: e.target.value})} style={{ width: '100%', padding: '8px 12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', cursor: 'pointer' }}>
-                              <option value="jpy">JPY (円)</option>
-                              <option value="usd">USD (ドル)</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+
                     <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
                       <button type="button" onClick={() => { setIsNewPlanOpen(false); setEditingPlan(null); }} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', fontSize: '13px', cursor: 'pointer' }}>キャンセル</button>
                       <button type="submit" style={{ padding: '8px 20px', background: '#0ea5e9', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>
@@ -2431,7 +2398,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                       <th style={{ padding: '12px 16px' }}>容量制限</th>
                       <th style={{ padding: '12px 16px' }}>機能制限・許可拡張子</th>
                       <th style={{ padding: '12px 16px' }}>メッセージ保存期間</th>
-                      {ENABLE_STRIPE_FEATURE && <th style={{ padding: '12px 16px' }}>Stripe Price ID</th>}
+
                       <th style={{ padding: '12px 16px', textAlign: 'center' }}>操作</th>
                     </tr>
                   </thead>
@@ -2454,18 +2421,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                           <div>保存: {plan.msg_retention_days === 0 ? '無制限' : `${plan.msg_retention_days}日`}</div>
                           <div>件数: {plan.msg_retention_count === 0 ? '無制限' : `${plan.msg_retention_count}件`}</div>
                         </td>
-                        {ENABLE_STRIPE_FEATURE && (
-                          <td style={{ padding: '14px 16px' }}>
-                            {plan.price_id ? (
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{plan.price_id}</span>
-                                <strong style={{ fontSize: '12px', color: '#10b981', marginTop: '2px' }}>{plan.price_amount.toLocaleString()} {plan.price_currency.toUpperCase()}/月</strong>
-                              </div>
-                            ) : (
-                              <span style={{ color: '#64748b', fontSize: '12px' }}>未設定 (無料)</span>
-                            )}
-                          </td>
-                        )}
+
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                             <button onClick={() => { setEditingPlan(plan); setIsNewPlanOpen(false); }} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>編集</button>
@@ -2487,7 +2443,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>CoHive システム環境設定</h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>SaaS全体のシステム設定、管理者アクセスパス、およびStripe決済の認証キーなどを設定します。</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>SaaS全体のシステム設定、管理者アクセスパスなどを設定します。</p>
               </div>
 
               <div style={{ background: 'rgba(30, 41, 59, 0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '24px' }}>
@@ -2538,55 +2494,7 @@ export const SaaSAdminDashboard: React.FC<SaaSAdminDashboardProps> = ({
                       </select>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContext: 'space-between', padding: '12px', background: 'rgba(0,0,0,0.1)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)', marginTop: '20px' }}>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Stripe オンラインサブスクリプション決済を有効化</span>
-                        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', marginTop: '2px' }}>有効にすると、利用制限に達したテナントオーナーがセルフで決済し、即時制限解除できるようになります。</span>
-                      </div>
-                      <button type="button" onClick={() => setStripeEnabled(!stripeEnabled)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                        {stripeEnabled ? <ToggleRight size={40} style={{ color: '#0ea5e9' }} /> : <ToggleLeft size={40} style={{ color: '#64748b' }} />}
-                      </button>
-                    </div>
                   </div>
-
-                  {/* Stripe決済鍵設定 */}
-                  {stripeEnabled && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <h3 style={{ margin: 0, fontSize: '14px', color: '#0ea5e9', fontWeight: 700 }}>Stripe API シークレット接続設定</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>Stripe Secret Key (sk_live_... / sk_test_...)</label>
-                          <input 
-                            type="password" 
-                            placeholder="sk_test_..." 
-                            value={stripeSecretKey} 
-                            onChange={(e) => setStripeSecretKey(e.target.value)} 
-                            style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} 
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>Stripe Publishable Key (pk_live_... / pk_test_...)</label>
-                          <input 
-                            type="text" 
-                            placeholder="pk_test_..." 
-                            value={stripePublishableKey} 
-                            onChange={(e) => setStripePublishableKey(e.target.value)} 
-                            style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} 
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>Stripe Webhook Signing Secret (whsec_...)</label>
-                        <input 
-                          type="password" 
-                          placeholder="whsec_..." 
-                          value={stripeWebhookSecret} 
-                          onChange={(e) => setStripeWebhookSecret(e.target.value)} 
-                          style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }} 
-                        />
-                      </div>
-                    </div>
-                  )}
 
                   <div style={{ display: 'flex', justifyContext: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px', marginTop: '10px' }}>
                     <button type="submit" disabled={loading} style={{ background: '#0ea5e9', border: 'none', padding: '10px 24px', borderRadius: '8px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
