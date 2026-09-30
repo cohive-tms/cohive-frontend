@@ -1,5 +1,5 @@
 /* ==========================================================================
-   cospace Global Design System (Vanilla CSS)
+   CoHive Global Design System (Vanilla CSS)
    - Light/Dark Mode Supported
    - Cyan Accent Color
    - Glassmorphism & Smooth Transitions
@@ -2828,5 +2828,16 @@ a:focus-visible {
   input[type="password"],
   textarea {
     font-size: 16px !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -7,6 +7,7 @@ import { Loader, AlertTriangle } from 'lucide-react';
 import './global.css';
 import { updateThemeColorMeta } from './utils/theme';
 import { GlobalAnnouncementBanner } from './components/GlobalAnnouncementBanner';
+import { PushNotificationBanner } from './components/PushNotificationBanner';
 import { useBranding } from './utils/useBranding';
 
 export interface SaasExtensions {
@@ -164,9 +165,15 @@ function AppContent({ saas }: AppProps) {
         document.documentElement.classList.toggle('theme-light', cachedTheme === 'light');
         updateThemeColorMeta(cachedTheme === 'light' ? 'light' : 'dark');
 
-        // サイレントリフレッシュによりアクセストークンを再取得してログイン状態を復元
-        try {
-          const refreshData = await apiClient.refreshAccessToken();
+        // サイレントリフレッシュとセットアップ状況チェックを並列実行して起動レイテンシを短縮
+        const [refreshResult, setupResult] = await Promise.allSettled([
+          apiClient.refreshAccessToken(),
+          apiClient.get<{ setupRequired: boolean; adminSetupRequired?: boolean }>('/api/setup/status')
+        ]);
+
+        // 1. サイレントリフレッシュ結果の処理
+        if (refreshResult.status === 'fulfilled') {
+          const refreshData = refreshResult.value;
           const token = typeof refreshData === 'string' ? refreshData : refreshData?.token;
           
           let parsed: UserSession | null = null;
@@ -203,20 +210,26 @@ function AppContent({ saas }: AppProps) {
               setLanguage(parsed.language);
             }
           }
-        } catch (refreshErr) {
+        } else {
           // リフレッシュに失敗した場合は未ログイン状態とする
-          console.log('No active session found or refresh failed:', refreshErr);
+          console.log('No active session found or refresh failed:', refreshResult.reason);
           localStorage.removeItem('cohive_session');
           apiClient.setToken(null);
           apiClient.setWorkspaceId(null);
           apiClient.setUserId(null);
         }
 
-        const response = await apiClient.get<{ setupRequired: boolean; adminSetupRequired?: boolean }>('/api/setup/status');
-        setSetupRequired(isSaasMode ? false : response.setupRequired);
-        setAdminSetupRequired(!!response.adminSetupRequired);
+        // 2. セットアップ状況チェック結果の処理
+        if (setupResult.status === 'fulfilled') {
+          const response = setupResult.value;
+          setSetupRequired(isSaasMode ? false : response.setupRequired);
+          setAdminSetupRequired(!!response.adminSetupRequired);
+        } else {
+          console.error('Failed to get setup status:', setupResult.reason);
+          setError(t('error') === 'Error' ? 'Failed to connect to Workers backend. Please make sure the server is running.' : 'Workers バックエンドへの接続に失敗しました。サーバーが起動しているか確認してください。');
+        }
       } catch (err: any) {
-        console.error('Failed to get setup status:', err);
+        console.error('Failed during setup initialization:', err);
         setError(t('error') === 'Error' ? 'Failed to connect to Workers backend. Please make sure the server is running.' : 'Workers バックエンドへの接続に失敗しました。サーバーが起動しているか確認してください。');
       } finally {
         setLoading(false);
@@ -681,15 +694,8 @@ function AppContent({ saas }: AppProps) {
         // 登録済みの Service Worker 登録オブジェクトを取得
         const registration = await navigator.serviceWorker.ready;
 
-        // 通知の許可状況を確認し、必要に応じて許可を求める
-        if (Notification.permission === 'default') {
-          const permission = await Notification.requestPermission();
-          if (permission !== 'granted') {
-            console.log('Push permission denied.');
-            return;
-          }
-        } else if (Notification.permission === 'denied') {
-          console.warn('Push permission is denied by user.');
+        // 既に許可されている場合のみ自動でバックグラウンド購読を同期（未許可時は画面上部のPushNotificationBannerでユーザー操作時に許可を求める）
+        if (Notification.permission !== 'granted') {
           return;
         }
 
@@ -1429,6 +1435,7 @@ function AppContent({ saas }: AppProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       <GlobalAnnouncementBanner />
+      <PushNotificationBanner />
       <div style={{ flex: 1, minHeight: 0, position: 'relative', width: '100%', overflow: 'hidden' }}>
         <ChatPage
           currentUser={session}
