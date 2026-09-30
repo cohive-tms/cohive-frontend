@@ -69,15 +69,21 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   // localStorageから全チャンネルの最終閲覧日時をJSON文字列として取得するヘルパー
   const getLastReadsParam = useCallback(() => {
     const lastReads: Record<string, string> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(`last_view_chan_${currentUser.id}_`)) {
-        const channelId = key.substring(`last_view_chan_${currentUser.id}_`.length);
-        const value = localStorage.getItem(key);
-        if (value) {
-          lastReads[channelId] = value;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(`last_view_chan_${currentUser.id}_`)) {
+            const channelId = key.substring(`last_view_chan_${currentUser.id}_`.length);
+            const value = localStorage.getItem(key);
+            if (value) {
+              lastReads[channelId] = value;
+            }
+          }
         }
       }
+    } catch (e) {
+      // プライベートブラウズモード等での例外をスルー
     }
     return JSON.stringify(lastReads);
   }, [currentUser.id]);
@@ -90,14 +96,20 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     { id: initialWorkspaceId, name: 'Default Workspace' }
   ]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() => {
-    return localStorage.getItem(`cohive_last_workspace_${currentUser.id}`) || initialWorkspaceId;
+    try {
+      return localStorage.getItem(`cohive_last_workspace_${currentUser.id}`) || initialWorkspaceId;
+    } catch {
+      return initialWorkspaceId;
+    }
   });
   const [activeView, setActiveView] = useState<'dashboard' | 'chat' | 'items' | 'inbox' | 'workspace_doc' | 'media' | 'workspace_settings' | 'search' | 'workspace_members'>(() => {
-    const saved = localStorage.getItem(`cohive_last_view_${currentUser.id}`);
-    const validViews = ['dashboard', 'chat', 'items', 'inbox', 'workspace_doc', 'media', 'workspace_settings', 'search', 'workspace_members'];
-    if (saved && validViews.includes(saved)) {
-      return saved as any;
-    }
+    try {
+      const saved = localStorage.getItem(`cohive_last_view_${currentUser.id}`);
+      const validViews = ['dashboard', 'chat', 'items', 'inbox', 'workspace_doc', 'media', 'workspace_settings', 'search', 'workspace_members'];
+      if (saved && validViews.includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
     return 'dashboard';
   });
 
@@ -169,8 +181,12 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     { id: initialChannelId, name: 'general', isPrivate: false }
   ]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(() => {
-    const wsId = localStorage.getItem(`cohive_last_workspace_${currentUser.id}`) || initialWorkspaceId;
-    return localStorage.getItem(`cohive_last_channel_${currentUser.id}_${wsId}`) || initialChannelId;
+    try {
+      const wsId = localStorage.getItem(`cohive_last_workspace_${currentUser.id}`) || initialWorkspaceId;
+      return localStorage.getItem(`cohive_last_channel_${currentUser.id}_${wsId}`) || initialChannelId;
+    } catch {
+      return initialChannelId;
+    }
   });
 
   // 通知（受信箱）用ステート
@@ -1096,7 +1112,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
 
   if (loadingWorkspace) {
     return (
-      <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-main, #0f172a)' }}>
+      <div className="setup-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '100dvh', width: '100%', background: 'var(--bg-main, #0f172a)' }}>
         <Loader className="animate-spin" size={32} style={{ color: 'var(--accent-primary, #0ea5e9)' }} />
       </div>
     );

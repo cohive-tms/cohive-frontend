@@ -16,38 +16,61 @@ export const PushNotificationBanner: React.FC<PushNotificationBannerProps> = ({ 
   const [success, setSuccess] = useState(false);
   const [deniedMessage, setDeniedMessage] = useState(false);
 
+  // Safari等のブラウザ制限下でNotification.permission参照時の例外を安全に処理
+  const getSafePermission = (): NotificationPermission | null => {
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window && window.Notification) {
+        return Notification.permission;
+      }
+    } catch (e) {
+      // iOS Safari 通常タブ等でアクセス禁止例外が起きる場合がある
+    }
+    return null;
+  };
+
   useEffect(() => {
-    // 1. ブラウザの対応チェック
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      return;
-    }
+    try {
+      // 1. ブラウザの対応チェック（iOS Safari 通常タブではPushManager非サポート等の場合あり）
+      if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        return;
+      }
 
-    // 2. 既に通知許可済みの場合は表示しない
-    if (Notification.permission === 'granted') {
-      // 購読状態を確認
-      navigator.serviceWorker.ready.then(async (registration) => {
-        try {
-          const subscription = await registration.pushManager.getSubscription();
-          if (subscription) {
-            onSubscriptionChange?.(true);
-            return;
+      const permission = getSafePermission();
+      if (!permission) return;
+
+      // 2. 既に通知許可済みの場合は表示しない
+      if (permission === 'granted') {
+        // 購読状態を確認
+        navigator.serviceWorker.ready.then(async (registration) => {
+          try {
+            if (!registration || !registration.pushManager) {
+              return;
+            }
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+              onSubscriptionChange?.(true);
+              return;
+            }
+            // 許可されているがサブスクリプションが未作成の場合は表示
+            checkDismissState();
+          } catch {
+            checkDismissState();
           }
-          // 許可されているがサブスクリプションが未作成の場合は表示
-          checkDismissState();
-        } catch {
-          checkDismissState();
-        }
-      }).catch(() => {});
-      return;
-    }
+        }).catch(() => {});
+        return;
+      }
 
-    // 3. 拒否されている場合は無理に出さず、静かに非表示
-    if (Notification.permission === 'denied') {
-      return;
-    }
+      // 3. 拒否されている場合は無理に出さず、静かに非表示
+      if (permission === 'denied') {
+        return;
+      }
 
-    // 4. 「後で」で非表示にされた期間のチェック (3日間非表示)
-    checkDismissState();
+      // 4. 「後で」で非表示にされた期間のチェック (3日間非表示)
+      checkDismissState();
+    } catch (err) {
+      // 予期せぬ例外が発生してもコンポーネント全体をクラッシュさせない
+      console.warn('Push notification banner check skipped:', err);
+    }
   }, []);
 
   const checkDismissState = () => {
@@ -100,6 +123,10 @@ export const PushNotificationBanner: React.FC<PushNotificationBannerProps> = ({ 
       // 2. Service Worker の登録と待機
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
+
+      if (!registration.pushManager) {
+        throw new Error(isEn ? 'Push notifications are not supported in this browser mode.' : 'お使いのブラウザモードではプッシュ通知がサポートされていません。');
+      }
 
       // 既存の古い購読があれば一旦解除
       try {

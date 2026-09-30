@@ -1594,7 +1594,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
                     />
                   ) : (
-                    currentUser.displayName.substring(0, 1).toUpperCase()
+                    (currentUser.displayName || '?').substring(0, 1).toUpperCase()
                   )}
                 </div>
                 
@@ -1617,11 +1617,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
                       />
                     ) : (
-                      currentUser.displayName.substring(0, 1).toUpperCase()
+                      (currentUser.displayName || '?').substring(0, 1).toUpperCase()
                     )}
                   </div>
                   <div className="user-info" style={{ flex: 1, overflow: 'hidden' }}>
-                    <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.displayName}</div>
+                    <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.displayName || 'User'}</div>
                     <div className="user-status" style={{ fontSize: '10px' }}>
                       {t('error') === 'Error' 
                         ? `Active (${currentUserRole === 'owner' ? 'Owner' : currentUserRole === 'member' ? 'Member' : 'Guest'})` 

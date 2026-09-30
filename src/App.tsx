@@ -8,6 +8,7 @@ import './global.css';
 import { updateThemeColorMeta } from './utils/theme';
 import { GlobalAnnouncementBanner } from './components/GlobalAnnouncementBanner';
 import { PushNotificationBanner } from './components/PushNotificationBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useBranding } from './utils/useBranding';
 
 export interface SaasExtensions {
@@ -1439,18 +1440,20 @@ function AppContent({ saas }: AppProps) {
 
   // 9. 通常チャット画面の表示
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100dvh', width: '100%', overflow: 'hidden' }}>
       <GlobalAnnouncementBanner />
       <PushNotificationBanner />
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', width: '100%', overflow: 'hidden' }}>
-        <ChatPage
-          currentUser={session}
-          initialWorkspaceId={session.workspaceId}
-          initialChannelId={session.defaultChannelId}
-          onLogout={handleLogout}
-          onUpdateUser={handleUpdateSession}
-          saas={saas}
-        />
+      <div style={{ flex: 1, minHeight: 0, height: '100%', position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <ErrorBoundary>
+          <ChatPage
+            currentUser={session}
+            initialWorkspaceId={session.workspaceId}
+            initialChannelId={session.defaultChannelId}
+            onLogout={handleLogout}
+            onUpdateUser={handleUpdateSession}
+            saas={saas}
+          />
+        </ErrorBoundary>
       </div>
       {showUpdateBanner && (
         <div style={{
@@ -1515,8 +1518,10 @@ function AppContent({ saas }: AppProps) {
 
 export default function App({ saas }: AppProps) {
   return (
-    <LanguageProvider>
-      <AppContent saas={saas} />
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AppContent saas={saas} />
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

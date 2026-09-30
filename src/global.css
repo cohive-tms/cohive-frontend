@@ -134,9 +134,9 @@ body {
 .app-container {
   display: flex;
   height: 100%;
-  height: 100dvh;
-  height: -webkit-fill-available;
   width: 100%;
+  flex: 1;
+  min-height: 0;
   background: var(--bg-gradient);
   overflow: hidden;
 }
@@ -1769,15 +1769,20 @@ body {
    Mobile Responsive Styling
    ========================================== */
 @media (max-width: 768px) {
+  /* 0. モバイル用ヘッダーメニューボタンの表示 */
+  .mobile-menu-trigger {
+    display: flex !important;
+  }
+
   /* 1. アプリコンテナレイアウト */
   .app-container {
     position: relative;
     overflow: hidden;
     padding-left: 60px; /* 縮小サイドバーの幅分の余白を確保してコンテンツのガタつきを防止 */
     height: 100% !important;
-    height: 100dvh !important;
-    height: -webkit-fill-available !important;
-    width: 100vw !important;
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
   }
 
   /* 2. サイドバーを左端に固定し、展開時は重ねてフロートさせる */
@@ -1788,8 +1793,6 @@ body {
     left: 0;
     width: 60px !important;
     height: 100% !important;
-    height: 100dvh !important;
-    height: -webkit-fill-available !important;
     z-index: 999;
     background: var(--bg-sidebar);
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1836,8 +1839,9 @@ body {
   /* 4. メインチャットエリアおよび各ビューのコンテナ */
   .chat-area {
     height: 100% !important;
-    height: 100dvh !important;
-    height: -webkit-fill-available !important;
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
     overflow: hidden;
     box-sizing: border-box !important;
   }
@@ -2899,8 +2903,9 @@ a:focus-visible {
 
   .app-container {
     height: 100% !important;
-    height: 100dvh !important;
-    height: -webkit-fill-available !important;
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
   }
 
   /* PWA時のステータスバー（時計・ノッチ・Dynamic Island）下の余白を確実に保証 */
@@ -2940,8 +2945,9 @@ a:focus-visible {
 
 .is-pwa-standalone .app-container {
   height: 100% !important;
-  height: 100dvh !important;
-  height: -webkit-fill-available !important;
+  width: 100% !important;
+  flex: 1 !important;
+  min-height: 0 !important;
 }
 
 .is-pwa-standalone .chat-header {
