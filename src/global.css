@@ -2885,16 +2885,16 @@ a:focus-visible {
    ========================================================================== */
 @media all and (display-mode: standalone) {
   html, body {
-    position: fixed;
-    width: 100vw;
-    height: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    position: fixed !important;
+    width: 100vw !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    height: -webkit-fill-available !important;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    overflow: hidden;
+    overflow: hidden !important;
   }
 
   .app-container {
@@ -2903,20 +2903,62 @@ a:focus-visible {
     height: -webkit-fill-available !important;
   }
 
-  /* PWA時のステータスバー下のヘッダー余白を確実に確保 */
+  /* PWA時のステータスバー（時計・ノッチ・Dynamic Island）下の余白を確実に保証 */
   .chat-header {
-    padding-top: calc(env(safe-area-inset-top, 24px) + 8px) !important;
-    min-height: calc(56px + env(safe-area-inset-top, 24px)) !important;
+    padding-top: calc(max(env(safe-area-inset-top, 0px), 48px) + 8px) !important;
+    min-height: calc(56px + max(env(safe-area-inset-top, 0px), 48px)) !important;
   }
 
-  /* PWA時の画面下部ホームバー周りの余白を確実に確保 */
+  .sidebar {
+    padding-top: max(env(safe-area-inset-top, 0px), 48px) !important;
+  }
+
+  /* PWA時の画面下部ホームバー周りの余白を確実に保証 */
   .chat-input-container {
-    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 12px) !important;
+    padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 24px) + 12px) !important;
   }
 
   .sidebar-footer {
-    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 12px) !important;
+    padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 24px) + 12px) !important;
   }
+}
+
+/* JSクラスによるPWA Standalone確実適用（CSSメディアクエリ非発火環境への対策） */
+.is-pwa-standalone html,
+.is-pwa-standalone body {
+  position: fixed !important;
+  width: 100vw !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  height: -webkit-fill-available !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden !important;
+}
+
+.is-pwa-standalone .app-container {
+  height: 100% !important;
+  height: 100dvh !important;
+  height: -webkit-fill-available !important;
+}
+
+.is-pwa-standalone .chat-header {
+  padding-top: calc(max(env(safe-area-inset-top, 0px), 48px) + 8px) !important;
+  min-height: calc(56px + max(env(safe-area-inset-top, 0px), 48px)) !important;
+}
+
+.is-pwa-standalone .sidebar {
+  padding-top: max(env(safe-area-inset-top, 0px), 48px) !important;
+}
+
+.is-pwa-standalone .chat-input-container {
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 24px) + 12px) !important;
+}
+
+.is-pwa-standalone .sidebar-footer {
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 24px) + 12px) !important;
 }
 
 @keyframes fadeIn {

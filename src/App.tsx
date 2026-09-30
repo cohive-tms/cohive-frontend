@@ -165,6 +165,12 @@ function AppContent({ saas }: AppProps) {
         document.documentElement.classList.toggle('theme-light', cachedTheme === 'light');
         updateThemeColorMeta(cachedTheme === 'light' ? 'light' : 'dark');
 
+        // iOS / Android PWA Standalone モードの検知クラス付与
+        const isStandalone = (window.navigator as any).standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+        if (isStandalone) {
+          document.documentElement.classList.add('is-pwa-standalone');
+        }
+
         // サイレントリフレッシュとセットアップ状況チェックを並列実行して起動レイテンシを短縮
         const [refreshResult, setupResult] = await Promise.allSettled([
           apiClient.refreshAccessToken(),
